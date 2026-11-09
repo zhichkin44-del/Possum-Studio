@@ -1,0 +1,9 @@
+node_modules/
+.env
+secrets*
+media/
+out/
+*.mp4
+*.mov
+*.jpg
+*.png
