@@ -5,6 +5,7 @@ import { TASKS, byId, renderTask, renderSimple, renderRepeat, nextPlanned } from
 import { buildCaptions, PLATFORMS, qualityIssues } from './post.js';
 import { isoWeek, parseStatsText, weekRows, scenarioAverages, bestPost, PLATFORM_LABEL, nf } from './stats.js';
 import * as T from './texts.js';
+import { OWNER_COMMANDS } from './poller.js';
 
 const DAY = 86_400_000;
 const RU_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -96,7 +97,9 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
   async function onStart(from, chat, code) {
     if (code && code === d.invites.owner && (!d.ownerId || d.ownerId === from)) {
       d.ownerId = from; save();
-      return void (await send(chat, T.ownerHello));
+      await send(chat, T.ownerHello);
+      try { await tg.setMyCommands(OWNER_COMMANDS, { chatId: from }); } catch (e) { log(`menu failed: ${e.message}`); } // после приветствия: меню не задерживает ответ
+      return;
     }
     if (code && code === d.invites.partner && (!d.partnerId || d.partnerId === from)) {
       if (!d.partner) d.partner = newPartner(from);

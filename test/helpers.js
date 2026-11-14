@@ -19,7 +19,10 @@ export class FakeTelegram {
     this.sendFails = 0;
     this.answered = [];
     this.files = new Map(); // file_id -> {size}
+    this.menus = []; this.webhookCalls = [];
   }
+  async setMyCommands(commands, opts = {}) { this.menus.push({ commands, chatId: opts.chatId ?? null }); }
+  async deleteWebhook(opts = {}) { this.webhookCalls.push(opts); }
   _push(rec) {
     if (this.sendFails > 0) { this.sendFails--; throw new Error('network down'); }
     rec.id = this.nextId++;

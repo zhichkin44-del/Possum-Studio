@@ -7,6 +7,7 @@ import { createStore } from './store.js';
 import { createTelegram } from './telegram.js';
 import { createMontage } from './montage.js';
 import { apiSource } from './stats.js';
+import { prepareBot, createPoller } from './poller.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.POSSUM_DATA_DIR ?? join(root, 'data');
@@ -41,26 +42,10 @@ if (!store.data.ownerId) log(`Саша, открой ссылку и нажми 
 if (!store.data.partnerId) log(`Напарнице — после её согласия — ссылка:  https://t.me/${me.username}?start=${inv.partner}   (она же у Саши по команде /код)`);
 if (!statsSource.connected) log('Статистика каналов: автодоступ не подключён, работаю по цифрам от напарницы.');
 
-let stopping = false;
+const poller = createPoller({ tg, bot, store, log, tg409Reset: () => tg.deleteWebhook({ dropPending: false }) });
+await prepareBot({ tg, log, ownerId: store.data.ownerId, store });
 const ticker = setInterval(() => { bot.tick().catch((e) => log(`tick: ${e.message}`)); }, 30_000);
 bot.tick().catch(() => {});
 
-async function poll() {
-  let delay = 1000;
-  while (!stopping) {
-    try {
-      const updates = await tg.getUpdates(store.data.offset, 30);
-      delay = 1000;
-      for (const u of updates) {
-        await bot.handleUpdate(u);
-        store.data.offset = u.update_id + 1; store.save();
-      }
-    } catch (e) {
-      if (/Conflict|409/.test(e.message)) { console.error('Бот уже запущен в другом окне (Telegram разрешает один опрос). Закрой второй экземпляр.'); process.exit(1); }
-      log(`опрос: ${e.message}; повтор через ${Math.round(delay / 1000)} с`);
-      await new Promise((r) => setTimeout(r, delay)); delay = Math.min(delay * 2, 60_000);
-    }
-  }
-}
-process.on('SIGINT', async () => { stopping = true; clearInterval(ticker); log('Останавливаюсь…'); await bot.idle(); store.save(); process.exit(0); });
-await poll();
+process.on('SIGINT', async () => { poller.stop(); clearInterval(ticker); log('Останавливаюсь…'); await bot.idle(); store.save(); process.exit(0); });
+await poller.run();

@@ -25,7 +25,9 @@ export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://ap
       }
       return body.result;
     } catch (e) {
-      throw new Error(redact(e.message, token));
+      const out = new Error(redact(e.message, token));
+      out.code = e.code; out.retryAfter = e.retryAfter; // код ответа (например 409) не теряем
+      throw out;
     } finally { clearTimeout(timer); }
   }
 
@@ -47,6 +49,9 @@ export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://ap
 
   return {
     getMe: () => call('getMe'),
+    deleteWebhook: ({ dropPending = false } = {}) => call('deleteWebhook', { drop_pending_updates: dropPending }),
+    // chatId — меню только для этого чата (Саши); без него — меню по умолчанию. Пустой список убирает старое меню.
+    setMyCommands: (commands, { chatId } = {}) => call('setMyCommands', { commands, ...(chatId ? { scope: { type: 'chat', chat_id: chatId } } : {}) }),
     getUpdates: (offset, timeout = 30) => call('getUpdates', { offset, timeout, allowed_updates: ['message', 'callback_query'] }, { timeoutMs: (timeout + 15) * 1000 }),
     async sendMessage(chat, text, opts = {}) {
       try {
