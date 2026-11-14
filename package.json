@@ -1,0 +1,13 @@
+{
+  "name": "possum-studio-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram-бот студии «Сахарный поссум»: задание дня, приём видео, монтаж, готовый пост, итоги недели",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "set-token": "node scripts/set-token.mjs"
+  },
+  "engines": { "node": ">=20" }
+}

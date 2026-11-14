@@ -7,3 +7,5 @@ out/
 *.mov
 *.jpg
 *.png
+data/*
+!data/.gitkeep
