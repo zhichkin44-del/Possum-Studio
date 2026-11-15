@@ -128,19 +128,34 @@ export function oldKeyWarning(path = settingsPath()) {
   return !canEncrypt() && hasPlain(migrateSettings(readRaw(path) ?? {})) ? OLD_KEY : undefined;
 }
 
-/** С экрана настроек приходят замаскированные «•••1234»: маска не должна затирать настоящий ключ. Пустое поле — «удалить ключ», оно проходит. */
-export function dropMasked(patch) {
+const SECRET_PATH = new RegExp(`^(claudeKey|(${PLATFORMS.join('|')})\\.(${SECRET_SUB.join('|')}))$`);
+const CUT = /^[^\s\/\\]{0,24}…[^\s\/\\]{0,8}$/; // «sk-ant…3456»: одна короткая строка без пробелов и слешей
+
+/**
+ * Не настоящее значение поля name: маска «•••1234» — в любом поле; укороченное «sk-ant…3456» — только в поле ключа
+ * (claudeKey, <площадка>.clientSecret/refreshToken/accessToken/botToken). В пути, имени, модели «…» — часть значения.
+ * Копия — в app/ui/form.js (окну модуль не подключить), тест следит, что они совпадают.
+ */
+export function isShown(v, name = '') {
+  if (typeof v !== 'string') return false;
+  const t = v.trim();
+  return t.startsWith('•••') || (SECRET_PATH.test(String(name ?? '')) && CUT.test(t));
+}
+
+/** Маска «•••1234» и укороченный ключ «sk-ant…3456» не затирают настоящий ключ (isShown по пути поля). Пустое поле — «удалить ключ», оно проходит. */
+export function dropMasked(patch, base = '') {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch;
   const out = {};
   for (const [k, v] of Object.entries(patch)) {
-    if (typeof v === 'string' && v.startsWith('•••')) continue;
-    out[k] = v && typeof v === 'object' && !Array.isArray(v) ? dropMasked(v) : v;
+    const path = base ? `${base}.${k}` : k;
+    if (isShown(v, path)) continue;
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) ? dropMasked(v, path) : v;
   }
   return out;
 }
 
 /**
- * Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются; пустой ключ — удалить ключ; маска «•••1234» — не трогать.
+ * Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются; пустой ключ — удалить ключ; маска «•••1234» и укороченный ключ «sk-ant…3456» — не трогать.
  * Нет шифрования: старый открытый ключ из файла убирается (OLD_KEY), новые ключи из patch выкидываются (NO_CRYPTO),
  * остальные поля сохраняются. В ответе warnings — все предупреждения, warning — они одной строкой для окна. В файл не пишутся.
  */

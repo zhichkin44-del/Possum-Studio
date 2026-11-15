@@ -385,11 +385,11 @@ $('#wzKeySave').onclick = async () => {
   if (!key) { $('#wzKeyMsg').innerHTML = '<span class="bad">Вставьте ключ или нажмите «Позже».</span>'; return; }
   try {
     const res = await api.saveSettings({ claudeKey: key });
-    $('#wzKeyIn').value = ''; // ключ в поле не держим: ни после сохранения, ни после «не сохранён» (NO_CRYPTO)
     if (res?.warning) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(res.warning)}</span>`; return; }
     keyDone();
   }
   catch (e) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
+  finally { $('#wzKeyIn').value = ''; } // ключ в поле не держим: ни после сохранения, ни при «не сохранён» (NO_CRYPTO), ни при ошибке
 };
 $('#wzKeyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#wzKeySave').click(); };
 $('#wzKeyLater').onclick = keyDone;

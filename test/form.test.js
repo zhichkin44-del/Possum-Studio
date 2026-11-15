@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { isShown } from '../core/settings.js';
 
 const src = readFileSync(new URL('../app/ui/form.js', import.meta.url), 'utf8');
 const ctx = {};
@@ -17,8 +18,10 @@ test('маска ключа не уходит, даже если поле был
   assert.deepEqual(plain(F.formPatch([field('youtube.clientSecret', '  •••9999 ', '•••9999')])), {});
 });
 
-test('многоточие «…» (укороченное значение) не уходит', () => {
-  assert.deepEqual(plain(F.formPatch([field('folders.music', 'D:/…/m', 'D:/…/m')])), {});
+test('укороченный ключ «sk-ant…3456» не уходит; «…» в пути или имени — часть значения и уходит', () => {
+  assert.deepEqual(plain(F.formPatch([field('claudeKey', 'sk-ant…3456', '•••3456', 'password'), field('tiktok.clientSecret', 'abc…', '')])), {});
+  assert.deepEqual(plain(F.formPatch([field('folders.music', 'D:\\Музыка…\\x', ''), field('folders.out', 'Видео…', '')])),
+    { folders: { music: 'D:\\Музыка…\\x', out: 'Видео…' } });
 });
 
 test('очищенное поле, где было значение, уходит пустым — «удалить ключ»', () => {
@@ -56,4 +59,15 @@ test('окно грузит form.js раньше app.js, а app.js берёт п
   assert.ok(f > 0 && f < html.indexOf('<script src="app.js"></script>'));
   assert.match(app, /PossumForm\.formPatch\(/);
   assert.match(app, /dataset\.had/);
+});
+
+test('окно и сохранение одинаково узнают маску: isShown в form.js — копия isShown из core/settings.js', () => {
+  // окно — классический скрипт под CSP 'self', модуль core/settings.js ему не подключить; поэтому копия и этот тест
+  const samples = ['•••1234', '  •••1234 ', 'sk-ant…3456', 'abc…', '…', '', 'sk-ant-REDACTED', 'claude-opus-5-5', '••1234', 'C:\\Видео',
+    'D:\\Музыка…\\x', 'Зверёк…', 'Видео…', 'a/…/b', 'два слова…', 'x'.repeat(30) + '…', 42, undefined, null];
+  const names = ['claudeKey', 'tiktok.clientSecret', 'youtube.refreshToken', 'instagram.accessToken', 'telegram.botToken',
+    'folders.music', 'petNames', 'model', 'tiktok.clientKey', 'claudeKeyX', '', undefined];
+  for (const v of samples) for (const n of names) assert.equal(F.isShown(v, n), isShown(v, n), `${String(v)} ${n}`);
+  // «…» в обычных полях — часть значения, в обеих копиях
+  for (const v of ['D:\\Музыка…\\x', 'Зверёк…', 'Видео…']) assert.equal(F.isShown(v, 'folders.music'), false, v);
 });

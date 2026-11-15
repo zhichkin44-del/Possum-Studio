@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadSettings, saveSettings, setVault, SCHEMA, NO_CRYPTO, OLD_KEY } from '../core/settings.js';
+import { loadSettings, saveSettings, setVault, isShown, SCHEMA, NO_CRYPTO, OLD_KEY } from '../core/settings.js';
 import { fakeVault } from './vault.js';
 
 const tmp = () => join(mkdtempSync(join(tmpdir(), 'possum-crypt-')), 'settings.json');
@@ -248,4 +248,42 @@ test('предупреждения из окна (warning, warnings) обрат�
   setVault(fakeVault());
   saveSettings(p, { model: 'claude-sonnet-5-5', warning: 'x', warnings: ['x'] });
   assert.ok(!raw(p).includes('warning'));
+});
+
+test('укороченное «…» не затирает ключ и при прямом вызове saveSettings (не только из формы)', () => {
+  const p = tmp();
+  setVault(fakeVault());
+  saveSettings(p, { claudeKey: KEY, tiktok: { clientSecret: TT } });
+  const s = saveSettings(p, { claudeKey: 'sk-ant…3456', tiktok: { clientSecret: 'abc…' }, model: 'claude-sonnet-5-5' });
+  assert.equal(s.claudeKey, KEY);
+  assert.equal(s.tiktok.clientSecret, TT);
+  assert.equal(s.model, 'claude-sonnet-5-5');
+  assert.ok(!raw(p).includes('…'), '«…» в файл не попало');
+});
+
+test('isShown: «•••» — маска в любом поле; «…» — только короткая укороченная форма в поле ключа', () => {
+  for (const v of ['•••1234', '  •••1234 ']) for (const n of ['claudeKey', 'folders.music', '']) assert.equal(isShown(v, n), true, `${v} ${n}`);
+  for (const n of ['claudeKey', 'tiktok.clientSecret', 'youtube.refreshToken', 'instagram.accessToken', 'telegram.botToken']) {
+    for (const v of ['sk-ant…3456', 'abc…', '…', ' sk-ant…3456 ']) assert.equal(isShown(v, n), true, `${v} ${n}`);
+    for (const v of ['D:\\Музыка…\\x', 'a/…/b', 'два слова…', 'x'.repeat(30) + '…', 'sk-ant-REDACTED', '••1234']) assert.equal(isShown(v, n), false, `${v} ${n}`);
+  }
+  for (const n of ['folders.music', 'petNames', 'model', 'tiktok.clientKey', 'youtube.clientId', 'claudeKeyX', 'x.claudeKey', '']) {
+    for (const v of ['sk-ant…3456', 'Зверёк…', 'Видео…', 'D:\\Музыка…\\x', '…']) assert.equal(isShown(v, n), false, `${v} ${n}`);
+  }
+  for (const v of ['', 'claude-opus-5-5', 42, undefined, null]) assert.equal(isShown(v, 'claudeKey'), false, String(v));
+});
+
+test('«…» в обычных полях — часть значения: путь к музыке и имена сохраняются как есть', () => {
+  const p = tmp();
+  setVault(fakeVault());
+  saveSettings(p, { claudeKey: KEY });
+  const music = 'D:\\Музыка…\\x';
+  const s = saveSettings(p, { folders: { music, out: 'Видео…' }, petNames: ['Зверёк…', 'Видео…'], model: 'claude-sonnet-5-5' });
+  assert.equal(s.folders.music, music);
+  assert.equal(s.folders.out, 'Видео…');
+  assert.deepEqual(s.petNames, ['Зверёк…', 'Видео…']);
+  assert.equal(s.claudeKey, KEY, 'ключ на месте');
+  const back = loadSettings(p);
+  assert.equal(back.folders.music, music);
+  assert.deepEqual(back.petNames, ['Зверёк…', 'Видео…']);
 });
