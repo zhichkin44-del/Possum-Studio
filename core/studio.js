@@ -20,16 +20,8 @@ import { signIn } from './oauth.js';
 
 export { PLATFORMS };
 
-/** С экрана настроек приходят замаскированные «•••1234»: маска не должна затирать настоящий ключ. Пустое поле — «удалить ключ», оно проходит. */
-export function dropMasked(patch) {
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch;
-  const out = {};
-  for (const [k, v] of Object.entries(patch)) {
-    if (typeof v === 'string' && v.startsWith('•••')) continue;
-    out[k] = v && typeof v === 'object' && !Array.isArray(v) ? dropMasked(v) : v;
-  }
-  return out;
-}
+/** Маски «•••1234» с экрана настроек отбрасывает сам saveSettings; здесь — для старых вызовов и тестов. */
+export { dropMasked } from './settings.js';
 
 export function createStudio({ path = settingsPath(), dataRoot, media = createMedia(), fetchImpl = fetch, aiFactory = createAi, log = () => {}, visionClient = null, now = () => Date.now(), clipModelDir = process.env.POSSUM_CLIP_MODEL ?? null, species: speciesOverride = null, privacy: privacyOverride = null } = {}) {
   if (!dataRoot) throw new Error('createStudio: нужен dataRoot');
@@ -203,7 +195,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
       const s = settings();
       // TikTok меняет refresh-токен при обновлении: сохраняем сразу, даже если загрузка потом упадёт
       const onRefreshToken = (t) => {
-        if (saveSettings(path, { tiktok: { refreshToken: t } }).warning === NO_CRYPTO) log('TikTok: новый токен не сохранён — шифрование Windows недоступно; в следующий раз войдите в TikTok заново');
+        if (saveSettings(path, { tiktok: { refreshToken: t } }).warnings?.includes(NO_CRYPTO)) log('TikTok: новый токен не сохранён — шифрование Windows недоступно; в следующий раз войдите в TikTok заново');
       };
       const res = await publishOne(platform, manifest, { settings: s, log: published, fetchImpl, confirm, onRefreshToken });
       log(`выкладка ${platform}: ${res.skipped ? 'уже было' : res.manual ? 'ручной пакет' : res.id}`);
@@ -218,7 +210,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     try {
       const r = await signIn(kind === 'youtube' ? 'google' : 'tiktok', creds, { openUrl, fetchImpl, port: kind === 'tiktok' ? 17841 : 0 });
       if (!r.refreshToken) throw new Error('площадка не выдала постоянный доступ — повторите вход');
-      if (saveSettings(path, { [kind]: { refreshToken: r.refreshToken } }).warning === NO_CRYPTO) throw new Error(NO_CRYPTO_SIGNIN);
+      if (saveSettings(path, { [kind]: { refreshToken: r.refreshToken } }).warnings?.includes(NO_CRYPTO)) throw new Error(NO_CRYPTO_SIGNIN);
       return { connected: true };
     } catch (e) { throw safe(e); }
   }
@@ -238,7 +230,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     skip: (id) => calendar().skip(id),
     disk: () => diskFree(dataRoot),
     masked: () => { const m = maskSettings(settings()); const w = oldKeyWarning(path); if (w) m.warning = w; return m; },
-    save: (patch) => maskSettings(saveSettings(path, dropMasked(patch))),
+    save: (patch) => maskSettings(saveSettings(path, patch)),
     wasPublished: (file, platform) => published.was(file, platform),
     hasManifest: (dir) => existsSync(join(dir, 'manifest.json')),
   };

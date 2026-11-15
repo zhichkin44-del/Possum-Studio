@@ -385,8 +385,9 @@ $('#wzKeySave').onclick = async () => {
   if (!key) { $('#wzKeyMsg').innerHTML = '<span class="bad">Вставьте ключ или нажмите «Позже».</span>'; return; }
   try {
     const res = await api.saveSettings({ claudeKey: key });
+    $('#wzKeyIn').value = ''; // ключ в поле не держим: ни после сохранения, ни после «не сохранён» (NO_CRYPTO)
     if (res?.warning) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(res.warning)}</span>`; return; }
-    $('#wzKeyIn').value = ''; keyDone();
+    keyDone();
   }
   catch (e) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 };
@@ -397,8 +398,7 @@ $('#wzFinish').onclick = () => { if (wzRole === 'partner') { go('queue'); refres
 $('#pairAgain').onclick = () => { $('#wzRole').hidden = false; $('#wzCode').hidden = true; $('#wzKey').hidden = true; $('#wzCodeOut').textContent = ''; $('#wzMsg').textContent = ''; go('wizard'); };
 
 // ——— Настройки ———
-const get = (o, path) => path.split('.').reduce((a, k) => a?.[k], o);
-function set(o, path, v) { const ks = path.split('.'); let a = o; ks.slice(0, -1).forEach((k) => { a = a[k] ??= {}; }); a[ks.at(-1)] = v; }
+const get = PossumForm.getPath; // логика формы — в form.js, её проверяет test/form.test.js
 
 async function loadSettings() {
   try {
@@ -417,15 +417,8 @@ async function loadSettings() {
 
 $('#form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const patch = {};
-  // маску ключа «•••abcd» не шлём — она не должна затирать сохранённый ключ; поле, которое очистили, шлём пустым — это «удалить»
-  for (const el of e.target.elements) {
-    if (!el.name || el.type === 'checkbox') continue;
-    const v = el.value.trim();
-    if (v.startsWith('•••') || v.includes('…')) continue;
-    if (v) set(patch, el.name, v);
-    else if (el.dataset.had) set(patch, el.name, '');
-  }
+  // маску ключа «•••abcd» не шлём; поле, которое очистили, шлём пустым — это «удалить» (dataset.had — что было при открытии)
+  const patch = PossumForm.formPatch([...e.target.elements].map((el) => ({ name: el.name, type: el.type, value: el.value, had: el.dataset.had })));
   try {
     const res = await api.saveSettings(patch);
     $('#saved').innerHTML = res?.warning ? `<span class="bad">${esc(res.warning)}</span>` : '<span class="ok">Сохранено</span>';

@@ -38,6 +38,8 @@ test('проводка: владелец и «один» видят шаг кл�
   assert.match(app, /saveSettings\(\{ claudeKey/);
   const save = app.slice(app.indexOf("$('#wzKeySave').onclick"), app.indexOf("$('#wzKeyIn').onkeydown"));
   assert.match(save, /warning[\s\S]*return/, 'ключ не сохранился (нет шифрования) — мастер не идёт дальше, показывает предупреждение');
+  const clear = save.indexOf("$('#wzKeyIn').value = ''");
+  assert.ok(clear > save.indexOf('saveSettings(') && clear < save.indexOf('res?.warning'), 'после ответа (и при NO_CRYPTO тоже) поле ключа очищается до проверки предупреждения');
   const solo = app.slice(app.indexOf("$('#wzSolo').onclick"), app.indexOf('\n', app.indexOf("$('#wzSolo').onclick")));
   assert.match(solo, /keyStep\(/);
   const fin = app.slice(app.indexOf("$('#wzFinish').onclick"), app.indexOf('\n', app.indexOf("$('#wzFinish').onclick")));

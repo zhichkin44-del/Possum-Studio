@@ -128,23 +128,34 @@ export function oldKeyWarning(path = settingsPath()) {
   return !canEncrypt() && hasPlain(migrateSettings(readRaw(path) ?? {})) ? OLD_KEY : undefined;
 }
 
+/** С экрана настроек приходят замаскированные «•••1234»: маска не должна затирать настоящий ключ. Пустое поле — «удалить ключ», оно проходит. */
+export function dropMasked(patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch;
+  const out = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (typeof v === 'string' && v.startsWith('•••')) continue;
+    out[k] = v && typeof v === 'object' && !Array.isArray(v) ? dropMasked(v) : v;
+  }
+  return out;
+}
+
 /**
- * Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются; пустой ключ — удалить ключ.
- * Нет шифрования: новые ключи из patch выкидываются, остальные поля сохраняются, в ответе warning: NO_CRYPTO
- * (не исключение); старый открытый ключ из файла убирается, в ответе warning: OLD_KEY. warning в файл не пишется.
+ * Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются; пустой ключ — удалить ключ; маска «•••1234» — не трогать.
+ * Нет шифрования: старый открытый ключ из файла убирается (OLD_KEY), новые ключи из patch выкидываются (NO_CRYPTO),
+ * остальные поля сохраняются. В ответе warnings — все предупреждения, warning — они одной строкой для окна. В файл не пишутся.
  */
 export function saveSettings(path, patch) {
   let saved = migrateSettings(readRaw(path) ?? {});
-  let warning;
-  if (!canEncrypt() && hasPlain(saved)) { saved = dropPlain(saved); warning = OLD_KEY; }
-  let { warning: _shown, ...clean } = patch ?? {}; // предупреждение окна обратно в файл не попадает
-  delete saved.warning;
-  if (!canEncrypt() && hasPlain(clean)) { clean = stripPlain(clean); warning = NO_CRYPTO; }
+  const warnings = [];
+  if (!canEncrypt() && hasPlain(saved)) { saved = dropPlain(saved); warnings.push(OLD_KEY); }
+  let { warning: _w, warnings: _ws, ...clean } = dropMasked(patch ?? {}); // предупреждения окна обратно в файл не попадают
+  delete saved.warning; delete saved.warnings;
+  if (!canEncrypt() && hasPlain(clean)) { clean = stripPlain(clean); warnings.push(NO_CRYPTO); }
   const next = mapSecrets(merge(merge(structuredClone(DEFAULTS), saved), clean), seal);
   next.schema = SCHEMA;
   writeRaw(path, next);
   const out = merge(structuredClone(DEFAULTS), mapSecrets(next, unseal));
-  if (warning) out.warning = warning;
+  if (warnings.length) { out.warnings = warnings; out.warning = warnings.join(' '); }
   return out;
 }
 

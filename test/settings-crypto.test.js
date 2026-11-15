@@ -197,3 +197,55 @@ test('вне Windows файл настроек — только для влад�
   saveSettings(p, { claudeKey: KEY });
   assert.equal(statSync(p).mode & 0o777, 0o600);
 });
+
+test('нет шифрования, в файле старый открытый ключ и в patch новый ключ: окно видит оба предупреждения', () => {
+  const p = tmp();
+  writeFileSync(p, JSON.stringify({ schema: SCHEMA, claudeKey: 'sk-ant-REDACTED4321', model: 'claude-opus-5-5' }));
+  setVault(fakeVault({ available: false }));
+  const s = saveSettings(p, { claudeKey: 'sk-ant-REDACTED9876', model: 'claude-sonnet-5-5' });
+  assert.deepEqual(s.warnings, [OLD_KEY, NO_CRYPTO]);
+  assert.ok(s.warning.includes(OLD_KEY) && s.warning.includes(NO_CRYPTO), 'одна строка для окна содержит оба текста');
+  assert.equal(s.claudeKey, '');
+  assert.equal(s.model, 'claude-sonnet-5-5');
+  assert.ok(!raw(p).includes('old-plain') && !raw(p).includes('new-plain'), 'ни старого, ни нового ключа в файле');
+  assert.ok(!raw(p).includes('warning'), 'предупреждения в файл не попали');
+});
+
+test('одно предупреждение — warnings из одного текста, warning равен ему', () => {
+  const p = tmp();
+  setVault(fakeVault({ available: false }));
+  const s = saveSettings(p, { claudeKey: KEY });
+  assert.deepEqual(s.warnings, [NO_CRYPTO]);
+  assert.equal(s.warning, NO_CRYPTO);
+  setVault(fakeVault());
+  const ok = saveSettings(p, { claudeKey: KEY });
+  assert.equal(ok.warning, undefined);
+  assert.equal(ok.warnings, undefined);
+});
+
+test('saveSettings сам отбрасывает маску «•••1111»: зашифрованный ключ не затирается', () => {
+  const p = tmp();
+  setVault(fakeVault());
+  saveSettings(p, { claudeKey: KEY, tiktok: { clientSecret: TT } });
+  const s = saveSettings(p, { claudeKey: '•••3456', tiktok: { clientSecret: '•••7777', clientKey: 'ck2' }, model: 'claude-sonnet-5-5' });
+  assert.equal(s.claudeKey, KEY);
+  assert.equal(s.tiktok.clientSecret, TT);
+  assert.equal(s.tiktok.clientKey, 'ck2');
+  assert.equal(s.model, 'claude-sonnet-5-5');
+  assert.ok(!raw(p).includes('•••'), 'маска в файл не попала');
+});
+
+test('маска без шифрования не считается новым ключом: нет ложного NO_CRYPTO', () => {
+  const p = tmp();
+  setVault(fakeVault({ available: false }));
+  const s = saveSettings(p, { claudeKey: '•••1111', model: 'claude-sonnet-5-5' });
+  assert.equal(s.warning, undefined);
+  assert.equal(s.model, 'claude-sonnet-5-5');
+});
+
+test('предупреждения из окна (warning, warnings) обратно в файл не пишутся', () => {
+  const p = tmp();
+  setVault(fakeVault());
+  saveSettings(p, { model: 'claude-sonnet-5-5', warning: 'x', warnings: ['x'] });
+  assert.ok(!raw(p).includes('warning'));
+});
