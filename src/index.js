@@ -8,6 +8,7 @@ import { createTelegram } from './telegram.js';
 import { createMontage } from './montage.js';
 import { apiSource } from './stats.js';
 import { prepareBot, createPoller } from './poller.js';
+import { createStudio } from '../core/studio.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = process.env.POSSUM_DATA_DIR ?? join(root, 'data');
@@ -31,7 +32,11 @@ const store = createStore(join(dataDir, 'state.json'));
 const montage = createMontage();
 if (!montage.ffmpeg) { console.error('Не найден ffmpeg. Установи FFmpeg (winget install Gyan.FFmpeg) или задай переменную FFMPEG.'); process.exit(1); }
 const statsSource = apiSource();
-const bot = createBot({ tg, store, montage, clock: { now: () => new Date() }, config, log, statsSource });
+// Ядро студии: видео от Саши → три монтажа + совет → выкладка по его кнопке. Ключи — в настройках владельца, не здесь.
+let studio = null;
+try { studio = createStudio({ dataRoot: join(dataDir, 'studio'), log }); }
+catch (e) { log(`Студия недоступна (монтаж для Саши выключен): ${e.message}`); }
+const bot = createBot({ tg, store, montage, clock: { now: () => new Date() }, config, log, statsSource, studio });
 
 const me = await tg.getMe().catch((e) => { console.error(`Telegram не отвечает или токен неверный: ${e.message}`); process.exit(1); });
 log(`Бот @${me.username} запущен. Данные: ${dataDir}. Часовой пояс: UTC${config.tzOffsetHours >= 0 ? '+' : ''}${config.tzOffsetHours}.`);

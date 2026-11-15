@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self'; script-src 'self'">
+  <title>Поссум-студия</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="side">
+    <div class="brand">🐾 Поссум-студия</div>
+    <button data-go="queue" class="on">Входящие</button>
+    <button data-go="done">Готово</button>
+    <button data-go="settings">Настройки</button>
+    <div class="status" id="status"></div>
+  </nav>
+
+  <main>
+    <section id="queue" class="screen on">
+      <header>
+        <h1>Входящие</h1>
+        <div class="row">
+          <button id="add" class="primary">Добавить видео</button>
+          <button id="openIn">Открыть папку</button>
+        </div>
+      </header>
+      <p class="hint" id="inHint"></p>
+      <div id="startError" class="error" hidden></div>
+      <ul class="jobs" id="jobs"></ul>
+      <p class="empty" id="queueEmpty">Пока пусто. Скопируй видео в папку «Входящие» или нажми «Добавить видео» — монтаж начнётся сам.</p>
+    </section>
+
+    <section id="done" class="screen">
+      <header>
+        <h1>Готово</h1>
+        <div class="row"><button id="openOut">Открыть папку «Готово»</button></div>
+      </header>
+      <ul class="jobs" id="doneList"></ul>
+      <p class="empty" id="doneEmpty">Готовых роликов пока нет.</p>
+    </section>
+
+    <section id="clip" class="screen">
+      <header>
+        <button id="back">← Назад</button>
+        <h1 id="clipName"></h1>
+      </header>
+      <div id="clipBody"></div>
+    </section>
+
+    <section id="settings" class="screen">
+      <header><h1>Настройки</h1></header>
+      <p class="hint">Этот экран заполняет Саша. Ключи хранятся только на этом компьютере и показываются последними четырьмя знаками.</p>
+      <form id="form">
+        <fieldset>
+          <legend>Тексты и советы (Claude)</legend>
+          <label>Ключ Claude API <input name="claudeKey" type="password" autocomplete="off" placeholder="вставь ключ"></label>
+          <label>Модель <input name="model"></label>
+        </fieldset>
+        <fieldset>
+          <legend>YouTube</legend>
+          <label>Client ID <input name="youtube.clientId" autocomplete="off"></label>
+          <label>Client secret <input name="youtube.clientSecret" type="password" autocomplete="off"></label>
+          <div class="row"><button type="button" data-connect="youtube">Войти в YouTube</button><span data-state="youtube"></span></div>
+        </fieldset>
+        <fieldset>
+          <legend>TikTok</legend>
+          <label>Client key <input name="tiktok.clientKey" autocomplete="off"></label>
+          <label>Client secret <input name="tiktok.clientSecret" type="password" autocomplete="off"></label>
+          <div class="row"><button type="button" data-connect="tiktok">Войти в TikTok</button><span data-state="tiktok"></span></div>
+        </fieldset>
+        <fieldset>
+          <legend>Instagram</legend>
+          <p class="hint">Официальный API Instagram берёт видео только по публичной ссылке, поэтому Reels выкладываются вручную: приложение даёт готовый файл, копирует подпись и показывает шаги. Ключи не нужны.</p>
+        </fieldset>
+        <fieldset>
+          <legend>Монтаж</legend>
+          <label>Папка своей музыки <input name="folders.music" placeholder="по умолчанию Документы\Поссум\Музыка"></label>
+          <label class="check"><input name="allowName" type="checkbox"> Называть зверька по имени в подписях</label>
+        </fieldset>
+        <div class="row"><button type="submit" class="primary">Сохранить</button><span id="saved"></span></div>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

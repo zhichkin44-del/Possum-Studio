@@ -13,8 +13,9 @@ const RU_DAYS_NOM = ['воскресенье', 'понедельник', 'вто
 const btn = (text, data) => ({ text, data });
 const sickRe = /вял|не ест|болеет|заболел|приболел|понос|не кушает/i;
 
-export function createBot({ tg, store, montage, clock, config, log = console.log, statsSource = null }) {
+export function createBot({ tg, store, montage, clock, config, log = console.log, statsSource = null, studio = null }) {
   const d = store.data;
+  if (!Array.isArray(d.ownerJobs)) d.ownerJobs = [];
   const pet = config.pet;
   const tzNow = () => Number(config.tzOffsetHours ?? 0); // читаем каждый раз: смена пояса ноутбука подхватывается без перезапуска
   const dataDir = config.dataDir ?? 'data';
@@ -115,13 +116,100 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
   }
 
   // ---------- Саша ----------
-  async function onOwner(chat, text) {
+  async function onOwner(chat, text, m = {}) {
+    if (m.video || m.video_note || (m.document?.mime_type ?? '').startsWith('video/')) return onOwnerVideo(chat, m);
     if (/^\/(status|статус)/i.test(text)) return void (await send(chat, statusText()));
     if (/^\/(код|code|invite)/i.test(text)) {
       const link = config.botUsername ? `\nСсылка для неё (нажать и «Запустить»): https://t.me/${config.botUsername}?start=${d.invites.partner}` : '';
       return void (await send(chat, `Код для напарницы: <code>${d.invites.partner}</code>${link}\nИли она отправляет боту: /start ${d.invites.partner}`));
     }
-    await send(chat, T.ownerHelp);
+    await send(chat, studio ? T.ownerHelpStudio : T.ownerHelp);
+  }
+
+  // ----- Саша присылает своё видео: три монтажа, совет, выкладка только по его кнопке -----
+  const OWNER_PLAT = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
+  const jobButtons = (id) => [
+    [btn('Выложить YouTube', `o:pub:${id}:youtube`), btn('В черновики TikTok', `o:pub:${id}:tiktok`)],
+    [btn('Instagram', `o:pub:${id}:instagram`), btn('Везде', `o:pub:${id}:all`)],
+    [btn('Переделать', `o:redo:${id}`)],
+  ];
+  const job = (id) => d.ownerJobs.find((j) => j.id === id);
+  const publishing = new Set(); // «id|площадка», что выкладывается сейчас
+
+  async function onOwnerVideo(chat, m) {
+    if (!studio) return void (await send(chat, T.ownerNoStudio));
+    const v = m.video ?? m.video_note ?? m.document;
+    if ((v.file_size ?? 0) > (config.maxDownloadBytes ?? 20_000_000)) return void (await send(chat, T.ownerTooBig));
+    const uid = String(v.file_unique_id ?? v.file_id).replace(/[^\w-]/g, '_');
+    const dir = join(dataDir, 'owner-in');
+    mkdirSync(dir, { recursive: true });
+    const src = join(dir, `${uid}.mp4`);
+    try { await retry(() => tg.download(v.file_id, src)); } catch (e) {
+      log(`owner download failed: ${e.message}`);
+      return void (await send(chat, /too big|слишком/i.test(e.message) ? T.ownerTooBig : T.downloadFailed));
+    }
+    startOwnerJob(chat, src);
+  }
+
+  function startOwnerJob(chat, src) {
+    const j = { id: `j${d.ownerJobs.length + 1}-${Date.now().toString(36)}`, src, dir: null, status: 'building', at: iso(), published: {} };
+    d.ownerJobs.push(j); if (d.ownerJobs.length > 50) d.ownerJobs.splice(0, d.ownerJobs.length - 50);
+    save();
+    void send(chat, T.ownerBuilding);
+    void enqueueBuild(() => runOwnerJob(chat, j));
+  }
+
+  async function runOwnerJob(chat, j) {
+    let man;
+    try { man = await studio.process(j.src); } catch (e) {
+      j.status = 'failed'; save();
+      return void (await send(chat, T.ownerBuildFailed(e.message), [[btn('Переделать', `o:redo:${j.id}`)]]));
+    }
+    j.dir = man.dir; j.status = 'ready'; save();
+    await send(chat, T.ownerResult(man));
+    for (const [k, label] of [['youtube', 'YouTube Shorts'], ['tiktok', 'TikTok'], ['reels', 'Instagram Reels']]) {
+      if (!man.outputs?.[k]) continue;
+      try { await tg.sendVideo(chat, man.outputs[k], { caption: label }); } catch (e) { log(`owner sendVideo failed: ${e.message}`); await send(chat, `${label}: файл готов, но Telegram его не принял — он лежит в папке «Готово».`); }
+    }
+    await send(chat, T.ownerWhere, jobButtons(j.id));
+  }
+
+  async function onOwnerCallback(act, id, plat) {
+    const chat = d.ownerId;
+    const j = job(id);
+    if (!j) return void (await send(chat, T.ownerJobGone));
+    if (!studio) return void (await send(chat, T.ownerNoStudio));
+    if (act === 'redo') return startOwnerJob(chat, j.src);
+    if (act === 'no') return void (await send(chat, 'Отменено — ничего не выложено.'));
+    if (act !== 'pub' && act !== 'ok') return;
+    if (j.status !== 'ready' || !j.dir) return void (await send(chat, T.ownerNotReady));
+    const plats = plat === 'all' ? Object.keys(OWNER_PLAT) : OWNER_PLAT[plat] ? [plat] : [];
+    if (!plats.length) return;
+    // первое нажатие только спрашивает; выкладка — после «Да, выложить»
+    if (act === 'pub') {
+      return void (await send(chat, `Точно выложить: ${plats.map((p) => OWNER_PLAT[p]).join(', ')}?`,
+        [[btn('Да, выложить', `o:ok:${id}:${plat}`), btn('Отмена', `o:no:${id}`)]]));
+    }
+    const key = `${id}|${plat}`;
+    if (publishing.has(key)) return; // второе «Да» не выкладывает дважды
+    const todo = plats.filter((p) => !j.published?.[p]); // уже выложенное повторно не трогаем
+    if (!todo.length) return void (await send(chat, 'Уже выложено — второй раз не выкладываю.'));
+    publishing.add(key);
+    await send(chat, `Выкладываю: ${todo.map((p) => OWNER_PLAT[p]).join(', ')}…`);
+    void enqueueBuild(async () => {
+      const lines = [];
+      for (const p of todo) {
+        try {
+          // confirm: true — только здесь, после нажатия кнопки Сашей
+          const r = await studio.publish(p, j.dir, { confirm: true });
+          j.published[p] = r.skipped ? (j.published[p] ?? 'было') : r.manual ? 'вручную' : (r.url ?? r.id ?? 'да');
+          lines.push(T.ownerPublished(OWNER_PLAT[p], r));
+        } catch (e) { lines.push(`${OWNER_PLAT[p]}: не вышло — ${T.esc(String(e.message).slice(0, 300))}`); }
+      }
+      publishing.delete(key);
+      save();
+      await send(chat, lines.join('\n\n'));
+    });
   }
 
   function weekPosted() {
@@ -442,6 +530,10 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
   // ---------- кнопки ----------
   async function onCallback(cb) {
     try { await tg.answerCallback?.(cb.id); } catch { /* ignore */ }
+    if (d.ownerId && cb.from?.id === d.ownerId && String(cb.data ?? '').startsWith('o:')) {
+      const [, act, id, plat] = String(cb.data).split(':');
+      return onOwnerCallback(act, id, plat);
+    }
     if (cb.from?.id !== d.partnerId) return;
     const s = S(); s.lastSeenAt = iso(); s.nudgesUnanswered = 0;
     const [, act, a1, a2] = String(cb.data ?? '').split(':');

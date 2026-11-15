@@ -81,7 +81,7 @@ export function makeWorld(opts = {}) {
     quietMs: 90_000, maxDownloadBytes: 20 * 1024 * 1024, pet: { im: 'Пип', ro: 'Пипа', da: 'Пипу', vi: 'Пипа', tv: 'Пипом', en: 'Pip' },
     ...(opts.config ?? {}),
   };
-  const bot = createBot({ tg, store, montage, clock, config, log: () => {} });
+  const bot = createBot({ tg, store, montage, clock, config, log: () => {}, studio: opts.studio ?? null });
   let updateId = 1000;
 
   const user = (id, name) => {

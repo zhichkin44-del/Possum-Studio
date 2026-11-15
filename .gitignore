@@ -9,3 +9,4 @@ out/
 *.png
 data/*
 !data/.gitkeep
+dist/

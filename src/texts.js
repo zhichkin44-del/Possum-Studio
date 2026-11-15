@@ -74,3 +74,34 @@ export const statsSaved = (rows) => `Записала: ${rows}.`;
 export const lessOften = 'Хорошо, буду присылать реже.';
 export const notRushing = 'Хорошо, не тороплю.';
 export const youreWelcome = 'Пожалуйста!';
+
+// ---------- Саша: своё видео → монтаж → выкладка по кнопке ----------
+export const ownerHelpStudio = 'Пришли видео поссума — смонтирую три версии (YouTube, TikTok, Reels), подскажу, что выкладывать, и выложу по твоей кнопке.\nКоманды: /status — как дела у напарницы, /код — код для неё.\nКлюч Claude и вход в YouTube/TikTok — в приложении «Поссум», раздел «Настройки».';
+export const ownerNoStudio = 'Монтаж в боте не подключён: запусти бота на компьютере, где стоит приложение «Поссум» и FFmpeg.';
+export const ownerTooBig = 'Telegram не отдаёт боту файлы больше 20 МБ. Пришли короче (до 30 секунд) или положи файл в папку «Входящие» приложения — там ограничения нет.';
+export const ownerBuilding = 'Принял, монтирую три версии. Обычно это 1–3 минуты.';
+export const ownerBuildFailed = (msg) => `Не получилось смонтировать: ${esc(String(msg).slice(0, 300))}`;
+export const ownerWhere = 'Куда выкладываем? Выкладываю только после твоего нажатия. TikTok уходит во входящие черновики — звук и публикация в самом TikTok.';
+export const ownerJobGone = 'Этот ролик уже не найден. Пришли видео ещё раз.';
+export const ownerNotReady = 'Ролик ещё не готов — дождись трёх видео.';
+
+export function ownerResult(m) {
+  const p = m.packages ?? {};
+  const lines = [
+    `<b>Совет:</b> ${esc(m.advice?.verdict ?? '')}. ${esc(m.advice?.why ?? '')}`,
+    ...((m.welfare ?? []).length ? ['', '<b>Забота о зверьке:</b>', ...m.welfare.map((w) => `• ${esc(w)}`)] : []),
+    '', `<b>YouTube:</b> ${esc(p.youtube?.title ?? '')}`,
+    `<b>TikTok:</b> ${esc(p.tiktok?.caption ?? '')}`,
+    `<b>Reels:</b> ${esc(p.instagram?.caption ?? '')}`,
+    '', `Тексты: ${m.texts?.source === 'claude' ? 'Claude' : 'шаблоны (ключ Claude не задан или не ответил)'}`,
+  ];
+  return lines.join('\n');
+}
+
+export function ownerPublished(label, r) {
+  if (r.skipped) return `${label}: ${esc(r.note ?? 'уже было выложено')}`;
+  if (r.manual) return `${label}: выкладка вручную.\n${(r.steps ?? []).map((s, i) => `${i + 1}. ${esc(s)}`).join('\n')}\nПодпись:\n${esc(r.caption ?? '')}`;
+  const warn = (r.warnings ?? []).length ? `\n${r.warnings.map(esc).join('\n')}` : '';
+  if (r.url) return `${label}: выложено — ${esc(r.url)}${warn}`;
+  return `${label}: ${esc(r.note ?? 'отправлено')}${warn}`;
+}
