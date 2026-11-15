@@ -383,7 +383,11 @@ function keyDone() { $('#wzKey').hidden = true; $('#wzRole').hidden = false; go(
 $('#wzKeySave').onclick = async () => {
   const key = $('#wzKeyIn').value.trim();
   if (!key) { $('#wzKeyMsg').innerHTML = '<span class="bad">Вставьте ключ или нажмите «Позже».</span>'; return; }
-  try { await api.saveSettings({ claudeKey: key }); $('#wzKeyIn').value = ''; keyDone(); }
+  try {
+    const res = await api.saveSettings({ claudeKey: key });
+    if (res?.warning) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(res.warning)}</span>`; return; }
+    $('#wzKeyIn').value = ''; keyDone();
+  }
   catch (e) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 };
 $('#wzKeyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#wzKeySave').click(); };
@@ -402,8 +406,9 @@ async function loadSettings() {
     for (const el of $('#form').elements) {
       if (!el.name) continue;
       if (el.type === 'checkbox') el.checked = Boolean(get(s, el.name));
-      else el.value = get(s, el.name) ?? '';
+      else { el.value = get(s, el.name) ?? ''; el.dataset.had = el.value; }
     }
+    if (s.warning) $('#saved').innerHTML = `<span class="bad">${esc(s.warning)}</span>`;
     const st = await api.state();
     renderPair(st.pair);
     for (const k of ['youtube', 'tiktok']) $(`[data-state="${k}"]`).innerHTML = st.status?.[k] ? '<span class="ok">подключено</span>' : 'не подключено';
@@ -413,9 +418,19 @@ async function loadSettings() {
 $('#form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const patch = {};
-  // пустые поля не шлём: маска ключа «…abcd» или пустота не должны затирать сохранённый ключ
-  for (const el of e.target.elements) if (el.name && el.value.trim() && !el.value.includes('…')) set(patch, el.name, el.value.trim());
-  try { await api.saveSettings(patch); $('#saved').innerHTML = '<span class="ok">Сохранено</span>'; loadSettings(); refresh(); }
+  // маску ключа «•••abcd» не шлём — она не должна затирать сохранённый ключ; поле, которое очистили, шлём пустым — это «удалить»
+  for (const el of e.target.elements) {
+    if (!el.name || el.type === 'checkbox') continue;
+    const v = el.value.trim();
+    if (v.startsWith('•••') || v.includes('…')) continue;
+    if (v) set(patch, el.name, v);
+    else if (el.dataset.had) set(patch, el.name, '');
+  }
+  try {
+    const res = await api.saveSettings(patch);
+    $('#saved').innerHTML = res?.warning ? `<span class="bad">${esc(res.warning)}</span>` : '<span class="ok">Сохранено</span>';
+    loadSettings(); refresh();
+  }
   catch (err) { $('#saved').innerHTML = `<span class="bad">${esc(errText(err))}</span>`; }
 });
 

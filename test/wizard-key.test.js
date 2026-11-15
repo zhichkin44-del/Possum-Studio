@@ -36,6 +36,8 @@ test('проводка: владелец и «один» видят шаг кл�
   assert.match(pre, /aiPrice: \(\) => ipcRenderer\.invoke\('ai:price'\)/);
   assert.match(app, /function keyStep\(/);
   assert.match(app, /saveSettings\(\{ claudeKey/);
+  const save = app.slice(app.indexOf("$('#wzKeySave').onclick"), app.indexOf("$('#wzKeyIn').onkeydown"));
+  assert.match(save, /warning[\s\S]*return/, 'ключ не сохранился (нет шифрования) — мастер не идёт дальше, показывает предупреждение');
   const solo = app.slice(app.indexOf("$('#wzSolo').onclick"), app.indexOf('\n', app.indexOf("$('#wzSolo').onclick")));
   assert.match(solo, /keyStep\(/);
   const fin = app.slice(app.indexOf("$('#wzFinish').onclick"), app.indexOf('\n', app.indexOf("$('#wzFinish').onclick")));

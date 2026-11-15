@@ -2,11 +2,11 @@
 // Все ключи здесь выдуманные, сеть подменена.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudio, dropMasked } from '../core/studio.js';
-import { loadSettings, setVault } from '../core/settings.js';
+import { loadSettings, setVault, OLD_KEY, NO_CRYPTO, NO_CRYPTO_SIGNIN } from '../core/settings.js';
 import { fakeVault } from './vault.js';
 
 setVault(fakeVault()); // в окне ключи шифрует Electron safeStorage; здесь — его подделка
@@ -44,10 +44,10 @@ function manifestIn(root) {
   return m;
 }
 
-test('dropMasked: маски и пустые секреты выкидываются, обычные поля остаются', () => {
+test('dropMasked: маски выкидываются, пустой секрет остаётся (это «удалить ключ»), обычные поля остаются', () => {
   assert.deepEqual(
     dropMasked({ claudeKey: '•••1234', model: 'm', youtube: { clientId: 'id', clientSecret: '', refreshToken: '•••abcd' }, petNames: ['А'] }),
-    { model: 'm', youtube: { clientId: 'id' }, petNames: ['А'] },
+    { model: 'm', youtube: { clientId: 'id', clientSecret: '' }, petNames: ['А'] },
   );
 });
 
@@ -59,11 +59,44 @@ test('настройки: экран показывает маску, а сох�
   assert.equal(shown.youtube.clientSecret, '•••9999');
   assert.ok(!JSON.stringify(shown).includes('test-key-000000abcd'));
 
-  studio.save({ ...shown, youtube: { ...shown.youtube, clientId: 'cid2' }, claudeKey: '' });
+  studio.save({ ...shown, youtube: { ...shown.youtube, clientId: 'cid2' } });
   const real = loadSettings(path);
   assert.equal(real.claudeKey, 'test-key-000000abcd');
   assert.equal(real.youtube.clientSecret, 'test-secret-9999');
   assert.equal(real.youtube.clientId, 'cid2');
+});
+
+test('настройки: пустое поле ключа через studio.save удаляет ключ, остальные ключи на месте', () => {
+  const { path, studio } = world();
+  studio.save({ claudeKey: 'test-key-000000abcd', youtube: { clientId: 'cid', clientSecret: 'test-secret-9999' } });
+  const shown = studio.save({ ...studio.masked(), claudeKey: '' });
+  assert.equal(shown.claudeKey, '', 'окно после «Сохранено» видит пустой ключ');
+  assert.equal(shown.warning, undefined);
+  const real = loadSettings(path);
+  assert.equal(real.claudeKey, '', 'ключ удалён по-настоящему');
+  assert.equal(real.youtube.clientSecret, 'test-secret-9999', 'маска другого ключа его не затёрла');
+  assert.equal(JSON.parse(readFileSync(path, 'utf8')).claudeKey, '', 'в файле ни ключа, ни шифра');
+  assert.equal(studio.status().claude, false);
+});
+
+test('нет шифрования, в файле старый открытый ключ: остальные настройки сохраняются, окно просит ввести ключ заново', () => {
+  const { path, studio } = world();
+  mkdirSync(join(path, '..'), { recursive: true });
+  writeFileSync(path, JSON.stringify({ claudeKey: 'sk-ant-REDACTED1234', tiktok: { clientKey: 'ck' } }));
+  setVault(fakeVault({ available: false }));
+  try {
+    assert.equal(studio.masked().warning, OLD_KEY, 'предупреждение видно уже при открытии настроек');
+    const shown = studio.save({ ...studio.masked(), model: 'claude-sonnet-5-5', folders: { music: 'D:/m' } });
+    assert.equal(shown.warning, OLD_KEY);
+    assert.match(OLD_KEY, /ключ в файле старый, введите заново/i);
+    const real = loadSettings(path);
+    assert.equal(real.model, 'claude-sonnet-5-5');
+    assert.equal(real.folders.music, 'D:/m');
+    assert.equal(real.tiktok.clientKey, 'ck');
+    assert.ok(!readFileSync(path, 'utf8').includes('old-plain'), 'открытого ключа в файле больше нет');
+    assert.ok(!readFileSync(path, 'utf8').includes('warning'), 'предупреждение из окна в файл не попало');
+    assert.equal(studio.masked().warning, undefined, 'после сохранения предупреждать не о чем');
+  } finally { setVault(fakeVault()); }
 });
 
 test('статус: что подключено', () => {
@@ -174,4 +207,34 @@ test('убрать момент через студию: неизвестный 
   cal.add({ id: 'p', kind: 'top5', dir: m.dir });
   cal.markPublished('p');
   await assert.rejects(studio.removeMoment('p', 0), /уже выложен/);
+});
+
+test('нет шифрования: вход YouTube не говорит «подключено», ошибка понятная, токена на диске нет', async () => {
+  const { path, studio } = world({
+    fetchImpl: fakeFetch([{ match: (u) => u.includes('oauth2.googleapis.com/token'), reply: { json: { access_token: 'AT', refresh_token: 'test-refresh-RT-424242' } } }]),
+  });
+  studio.save({ youtube: { clientId: 'cid', clientSecret: 'test-secret-9999' } });
+  const openUrl = async (url) => {
+    const q = new URL(url).searchParams;
+    await fetch(`${q.get('redirect_uri')}?code=c1&state=${q.get('state')}`);
+  };
+  setVault(fakeVault({ available: false }));
+  try {
+    await assert.rejects(studio.connect('youtube', openUrl), (e) => e.message === NO_CRYPTO_SIGNIN);
+    assert.match(NO_CRYPTO_SIGNIN, /вход не сохранён.*шифровани/i);
+    assert.ok(!readFileSync(path, 'utf8').includes('test-refresh-RT-424242'));
+  } finally { setVault(fakeVault()); }
+  assert.equal(studio.status().youtube, false);
+});
+
+test('нет шифрования: studio.save с новым ключом отдаёт окну NO_CRYPTO, а модель сохраняет', () => {
+  const { path, studio } = world();
+  setVault(fakeVault({ available: false }));
+  try {
+    const shown = studio.save({ model: 'claude-sonnet-5-5', claudeKey: 'sk-ant-REDACTED5555' });
+    assert.equal(shown.warning, NO_CRYPTO);
+    assert.equal(loadSettings(path).model, 'claude-sonnet-5-5');
+    assert.ok(!readFileSync(path, 'utf8').includes('new-5555'));
+    assert.equal(studio.masked().warning, undefined, 'после сохранения «Ключ в файле старый» не всплывает');
+  } finally { setVault(fakeVault()); }
 });

@@ -37,6 +37,8 @@ const SECRET_SUB = ['clientSecret', 'refreshToken', 'accessToken', 'botToken'];
 const PLATFORMS = ['youtube', 'tiktok', 'instagram', 'telegram'];
 const ENC = 'ss1';
 export const NO_CRYPTO = 'Ключ не сохранён: шифрование Windows недоступно на этом компьютере. Открытым текстом ключи не храним.';
+export const NO_CRYPTO_SIGNIN = 'Вход не сохранён: шифрование Windows недоступно на этом компьютере. Открытым текстом ключи не храним.';
+export const OLD_KEY = 'Ключ в файле старый, введите заново: шифрование Windows недоступно, открытым текстом ключи не храним.';
 
 /** Хранилище ключей: Electron safeStorage (isEncryptionAvailable, encryptString, decryptString). Без него ключи не пишутся. */
 let vault = null;
@@ -106,13 +108,44 @@ export function loadSettings(path = settingsPath()) {
   return merge(structuredClone(DEFAULTS), mapSecrets(raw, unseal));
 }
 
-/** Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются. Нет шифрования и есть ключ — ошибка NO_CRYPTO, файл не меняется. */
+/** Без шифрования старые открытые ключи из файла не переписываются и не держат остальные настройки: они убираются. */
+const dropPlain = (s) => mapSecrets(s, (v) => (typeof v === 'string' && v ? '' : v));
+/** Убирает из patch новые ключи (непустые строки): без шифрования их не пишем. Пустые («удалить») оставляет. */
+function stripPlain(s) {
+  const plain = (v) => typeof v === 'string' && v !== '';
+  const out = { ...s };
+  if (plain(out.claudeKey)) delete out.claudeKey;
+  for (const k of PLATFORMS) {
+    if (!out[k] || typeof out[k] !== 'object') continue;
+    out[k] = { ...out[k] };
+    for (const f of SECRET_SUB) if (plain(out[k][f])) delete out[k][f];
+  }
+  return out;
+}
+
+/** Предупреждение для окна настроек: в файле старый открытый ключ, а зашифровать его нечем. */
+export function oldKeyWarning(path = settingsPath()) {
+  return !canEncrypt() && hasPlain(migrateSettings(readRaw(path) ?? {})) ? OLD_KEY : undefined;
+}
+
+/**
+ * Сохраняет patch: ключи шифруются; нечитаемые шифры в файле не теряются; пустой ключ — удалить ключ.
+ * Нет шифрования: новые ключи из patch выкидываются, остальные поля сохраняются, в ответе warning: NO_CRYPTO
+ * (не исключение); старый открытый ключ из файла убирается, в ответе warning: OLD_KEY. warning в файл не пишется.
+ */
 export function saveSettings(path, patch) {
-  const saved = readRaw(path) ?? {};
-  const next = mapSecrets(merge(merge(structuredClone(DEFAULTS), migrateSettings(saved)), patch), seal);
+  let saved = migrateSettings(readRaw(path) ?? {});
+  let warning;
+  if (!canEncrypt() && hasPlain(saved)) { saved = dropPlain(saved); warning = OLD_KEY; }
+  let { warning: _shown, ...clean } = patch ?? {}; // предупреждение окна обратно в файл не попадает
+  delete saved.warning;
+  if (!canEncrypt() && hasPlain(clean)) { clean = stripPlain(clean); warning = NO_CRYPTO; }
+  const next = mapSecrets(merge(merge(structuredClone(DEFAULTS), saved), clean), seal);
   next.schema = SCHEMA;
   writeRaw(path, next);
-  return merge(structuredClone(DEFAULTS), mapSecrets(next, unseal));
+  const out = merge(structuredClone(DEFAULTS), mapSecrets(next, unseal));
+  if (warning) out.warning = warning;
+  return out;
 }
 
 const mask = (v) => (v ? `•••${String(v).slice(-4)}` : '');
