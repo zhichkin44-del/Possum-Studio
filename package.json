@@ -9,7 +9,10 @@
     "test": "node --test \"test/**/*.test.js\"",
     "set-token": "node scripts/set-token.mjs",
     "app": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "node scripts/make-icon.mjs && node scripts/fetch-model.mjs && electron-builder --win nsis",
+    "demo": "node scripts/demo.mjs",
+    "fetch-model": "node scripts/fetch-model.mjs",
+    "make-icon": "node scripts/make-icon.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -17,20 +20,22 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
     "ffmpeg-static": "^5.3.0",
-    "ffprobe-static": "^3.1.0"
+    "ffprobe-static": "^3.1.0",
+    "onnxruntime-node": "1.30.0"
   },
   "devDependencies": {
     "electron": "^45.3.2",
     "electron-builder": "^26.18.0"
   },
-  "productName": "Поссум-студия",
+  "productName": "Поссум Студия",
   "author": "Possum Studio",
   "main": "app/main.js",
   "build": {
     "appId": "studio.possum.app",
-    "productName": "Поссум-студия",
+    "productName": "Поссум Студия",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "app/**",
@@ -39,17 +44,34 @@
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**",
-      "node_modules/ffprobe-static/**"
+      "node_modules/ffprobe-static/**",
+      "node_modules/onnxruntime-node/**"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "shortcutName": "Поссум-студия",
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Поссум Студия",
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Поссум Студия",
+      "deleteAppDataOnUninstall": false,
       "artifactName": "Possum-Studio-Setup-${version}.${ext}"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "models",
+        "to": "models",
+        "filter": [
+          "**/*.onnx"
+        ]
+      }
+    ]
   }
 }

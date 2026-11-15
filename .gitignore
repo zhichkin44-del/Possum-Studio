@@ -10,3 +10,4 @@ out/
 data/*
 !data/.gitkeep
 dist/
+models/

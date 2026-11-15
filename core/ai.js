@@ -14,15 +14,15 @@ const SCHEMA = {
 };
 
 const TEMPLATES = {
-  move: { titleRu: 'Прыжок, которого никто не ждал', titleEn: 'Nobody expected this jump', descRu: 'Сахарный поссум показывает, кто тут главный акробат.' },
-  squeak: { titleRu: 'Он что-то сказал. Переведите', titleEn: 'He said something. Translate?', descRu: 'Сахарный поссум возмущён и не скрывает этого.' },
-  none: { titleRu: 'Сахарный поссум занят важными делами', titleEn: 'Sugar glider on a very important mission', descRu: 'Маленький ночной зверёк и его большие планы.' },
+  move: { titleRu: 'Прыжок, которого никто не ждал', titleEn: 'Nobody expected this jump', descRu: 'Маленький зверёк показывает, кто тут главный акробат.' },
+  squeak: { titleRu: 'Он что-то сказал. Переведите', titleEn: 'He said something. Translate?', descRu: 'Зверёк возмущён и не скрывает этого.' },
+  none: { titleRu: 'Зверёк занят важными делами', titleEn: 'A little animal on a very important mission', descRu: 'Маленький ночной зверёк и его большие планы.' },
 };
 
 export function templateTexts(facts = {}) {
   const kinds = (facts.peaks ?? []).map((p) => p.kind);
   const t = kinds.includes('squeak') ? TEMPLATES.squeak : kinds.includes('move') ? TEMPLATES.move : TEMPLATES.none;
-  return { ...t, tags: ['sugarglider', 'сахарныйпоссум', 'поссум', 'питомцы', 'cute'] };
+  return { ...t, tags: ['питомцы', 'зверёк', 'милыеживотные'] };
 }
 
 function prompt(facts) {
@@ -30,12 +30,32 @@ function prompt(facts) {
     длительность: facts.duration, вердикт: facts.advice?.verdict, почему: facts.advice?.why,
     моменты: (facts.peaks ?? []).map((p) => `${p.kind === 'move' ? 'прыжок' : 'писк'} на ${p.t?.toFixed?.(1)} с`),
     темно: facts.dark,
+    сюжет: facts.story, черновик: facts.draft, подписи: facts.captions?.length ? facts.captions : undefined,
   };
   return [
-    'Ты помогаешь вести канал про сахарного поссума (Shorts, TikTok, Reels). Придумай цепкий заголовок по-русски, перевод на английский, короткое описание (1–2 предложения) и до 8 тегов без «#».',
+    `Ты помогаешь вести канал про домашнего зверька (Shorts, TikTok, Reels). Придумай цепкий заголовок по-русски, перевод на английский, короткое описание (1–2 предложения) и до 8 тегов без «#».`,
+    facts.species ? `Вид зверька подтвердил владелец: ${facts.species}.` : 'Вид зверька не подтверждён: не называй вид, пиши «зверёк».',
     'Правила: не называй кличку питомца и никаких политиков; не обещай просмотры и деньги; не советуй включать свет или снимать со вспышкой; пиши по фактам ниже, без выдумок.',
     `Факты анализа ролика: ${JSON.stringify(f)}`,
   ].join('\n');
+}
+
+// Прайс Claude, $ за 1 млн токенов (вход / выход). Источник — прайс Anthropic; меняется — правим здесь.
+export const PRICES = {
+  'claude-opus-5-5': { in: 4, out: 20 },
+};
+const MAX_OUT = 1500; // потолок ответа (max_tokens ниже)
+const TYPICAL_OUT = 400; // заголовок RU+EN, описание и до 8 тегов в JSON
+
+// Сколько стоят тексты к одному ролику: вход — длина нашего запроса (≈2 символа на токен, с запасом),
+// выход — обычный ответ и потолок max_tokens. Неизвестная модель — null: расход не выдумываем.
+export function textCost(model = 'claude-opus-5-5') {
+  const p = PRICES[model];
+  if (!p) return null;
+  const sample = { duration: 24, advice: { verdict: 'хорошо', why: 'зверёк в кадре, видно движение' }, peaks: [{ kind: 'move', t: 3.2 }, { kind: 'move', t: 9.8 }, { kind: 'squeak', t: 15.1 }], dark: false, species: 'сахарный поссум' };
+  const inTokens = Math.ceil(prompt(sample).length / 2);
+  const cost = (out) => (inTokens * p.in + out * p.out) / 1e6;
+  return { model, priceIn: p.in, priceOut: p.out, inTokens, typicalOut: TYPICAL_OUT, maxOut: MAX_OUT, perClip: cost(TYPICAL_OUT), perClipMax: cost(MAX_OUT) };
 }
 
 const valid = (j) => j && typeof j.titleRu === 'string' && j.titleRu.trim() && typeof j.titleEn === 'string'
@@ -59,7 +79,7 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
         const c = await getClient();
         const res = await c.beta.messages.create({
           model,
-          max_tokens: 1500,
+          max_tokens: MAX_OUT,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
           output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },

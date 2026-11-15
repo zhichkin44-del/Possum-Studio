@@ -3,19 +3,58 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self'; script-src 'self'">
-  <title>Поссум-студия</title>
+  <title>Поссум Студия</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <nav class="side">
-    <div class="brand">🐾 Поссум-студия</div>
+    <div class="brand">🐾 Поссум Студия</div>
     <button data-go="queue" class="on">Входящие</button>
-    <button data-go="done">Готово</button>
+    <button data-go="calendar">Календарь</button>
+    <button data-go="from" id="navFrom" hidden>Готовые от монтажёра</button>
     <button data-go="settings">Настройки</button>
+    <div class="pairline" id="pairLine"></div>
     <div class="status" id="status"></div>
   </nav>
 
   <main>
+    <!-- Мастер первого запуска -->
+    <section id="wizard" class="screen">
+      <header><h1>Добро пожаловать</h1></header>
+      <p>Ролики со зверьком из ваших видео. Выкладывает только человек.</p>
+      <div class="card" id="wzRole">
+        <h3>Кто вы?</h3>
+        <div class="row">
+          <button data-role="partner">Я снимаю и отправляю видео (напарница)</button>
+          <button data-role="owner">Я монтирую и выкладываю (монтажёр)</button>
+          <button id="wzSolo">Работаю один: сам снимаю и выкладываю</button>
+        </div>
+        <p class="hint">Для пары нужна общая папка у обоих (Яндекс Диск, Google Диск, OneDrive). Одному — не нужна.</p>
+      </div>
+      <div class="card" id="wzCode" hidden>
+        <h3>Соединиться</h3>
+        <div id="wzOwner" hidden>
+          <p>Нажмите «Получить код» и продиктуйте его напарнице. Код действует сутки.</p>
+          <div class="row"><button class="primary" id="wzCreate">Получить код</button><span class="code" id="wzCodeOut"></span></div>
+        </div>
+        <div id="wzPartner" hidden>
+          <p>Введите код, который назвал монтажёр.</p>
+          <div class="row"><input id="wzCodeIn" maxlength="12" placeholder="код"><button class="primary" id="wzJoin">Соединить</button></div>
+        </div>
+        <p id="wzMsg"></p>
+        <button id="wzFinish">Готово, к работе</button>
+      </div>
+      <div class="card" id="wzKey" hidden>
+        <h3>Ключ Claude: ввести сейчас или позже?</h3>
+        <p>Claude пишет к каждому ролику заголовок, описание и теги. С ключом приложение само отправляет Claude короткое описание каждого ролика (длина, сюжет, подписи — без видео и личных данных) и ставит его тексты; вызовы оплачиваются с этого ключа. Не ответил Claude — тексты по шаблону, и у ролика будет пометка. Без ключа всё остальное работает так же — монтаж, обложки, календарь, — а тексты будут по шаблону: их стоит поправить руками перед выкладкой.</p>
+        <p class="hint" id="wzKeyCost"></p>
+        <p class="hint">Ключ вводит только владелец (монтажёр): он платит за него в console.anthropic.com. Ключ хранится только на этом компьютере, напарнице и наружу не уходит. Поменять или удалить — в «Настройках».</p>
+        <div class="row"><input id="wzKeyIn" type="password" autocomplete="off" placeholder="вставьте ключ (sk-ant-…)"><button class="primary" id="wzKeySave">Сохранить ключ</button></div>
+        <p id="wzKeyMsg"></p>
+        <div class="row"><button id="wzKeyLater">Позже — пока черновые тексты</button></div>
+      </div>
+    </section>
+
     <section id="queue" class="screen on">
       <header>
         <h1>Входящие</h1>
@@ -25,23 +64,45 @@
         </div>
       </header>
       <p class="hint" id="inHint"></p>
+      <div class="drop" id="drop"><b>…или перетащите видео сюда — можно целую папку</b><span class="hint">с телефона, флешки или из «Загрузок» — разбор начнётся сам</span></div>
+      <div class="card progress" id="copyBox" hidden>
+        <div class="row"><b id="cpTitle">Копирую видео</b><span id="cpName" class="hint"></span><span id="cpCount" class="hint"></span></div>
+        <div class="bar"><div id="cpBar"></div></div>
+      </div>
       <div id="startError" class="error" hidden></div>
+      <div class="card progress" id="progress" hidden>
+        <div class="row"><b id="pgStage"></b><span id="pgName" class="hint"></span><span id="pgEta" class="hint"></span></div>
+        <div class="bar"><div id="pgBar"></div></div>
+      </div>
+      <div class="card" id="speciesBox" hidden></div>
+      <div class="card" id="lastBox" hidden></div>
       <ul class="jobs" id="jobs"></ul>
-      <p class="empty" id="queueEmpty">Пока пусто. Скопируй видео в папку «Входящие» или нажми «Добавить видео» — монтаж начнётся сам.</p>
+      <p class="empty" id="queueEmpty">Пока пусто — нажмите <span id="addName">«Добавить видео»</span>: <span id="addTail">разбор начнётся сам</span>.</p>
     </section>
 
-    <section id="done" class="screen">
+    <section id="calendar" class="screen">
       <header>
-        <h1>Готово</h1>
+        <h1>Календарь</h1>
         <div class="row"><button id="openOut">Открыть папку «Готово»</button></div>
       </header>
-      <ul class="jobs" id="doneList"></ul>
-      <p class="empty" id="doneEmpty">Готовых роликов пока нет.</p>
+      <p class="hint" id="calHint"></p>
+      <ul class="slots" id="slots"></ul>
+      <p class="empty" id="calEmpty">Роликов пока нет. Закиньте видео во «Входящие».</p>
+      <details id="histBox"><summary>Уже выложено и пропущено</summary><ul class="slots" id="hist"></ul></details>
+    </section>
+
+    <section id="from" class="screen">
+      <header>
+        <h1>Готовые от монтажёра</h1>
+        <div class="row"><button class="primary" id="openFrom">Открыть папку</button></div>
+      </header>
+      <p class="hint">Сюда приходят смонтированные ролики и тексты к ним. Выкладывает только монтажёр или вы сами по его слову.</p>
+      <ul class="jobs" id="fromList"></ul>
     </section>
 
     <section id="clip" class="screen">
       <header>
-        <button id="back">← Назад</button>
+        <button id="back">← Календарь</button>
         <h1 id="clipName"></h1>
       </header>
       <div id="clipBody"></div>
@@ -49,33 +110,38 @@
 
     <section id="settings" class="screen">
       <header><h1>Настройки</h1></header>
-      <p class="hint">Этот экран заполняет Саша. Ключи хранятся только на этом компьютере и показываются последними четырьмя знаками.</p>
-      <form id="form">
+      <p class="hint">Ключи хранятся только на этом компьютере и показываются последними четырьмя знаками.</p>
+      <fieldset class="pairBox">
+        <legend>Пара</legend>
+        <p id="pairInfo"></p>
+        <p class="hint" id="partnerHint" hidden>Ролики монтирует и выкладывает монтажёр — вам здесь ничего настраивать не нужно. Просто нажмите «Отправить видео монтажёру».</p>
+        <button id="pairAgain">Настроить пару заново</button>
+      </fieldset>
+      <form id="form" class="ownerOnly">
         <fieldset>
-          <legend>Тексты и советы (Claude)</legend>
-          <label>Ключ Claude API <input name="claudeKey" type="password" autocomplete="off" placeholder="вставь ключ"></label>
-          <label>Модель <input name="model"></label>
+          <legend>Разбор видео и тексты (Claude)</legend>
+          <label>Ключ Claude API <input name="claudeKey" type="password" autocomplete="off" placeholder="вставьте ключ"></label>
+          <p class="hint">Где взять: на сайте console.anthropic.com раздел «API Keys» (ключи) → кнопка «Create Key» (создать ключ), скопировать ключ и вставить сюда. Без ключа всё работает, тексты черновые. С ключом приложение тратит на разбор не больше 25 центов в день (оплата картой на сайте Anthropic), дальше ждёт следующего дня.</p>
         </fieldset>
         <fieldset>
           <legend>YouTube</legend>
-          <label>Client ID <input name="youtube.clientId" autocomplete="off"></label>
-          <label>Client secret <input name="youtube.clientSecret" type="password" autocomplete="off"></label>
+          <label>Номер приложения (Client ID) <input name="youtube.clientId" autocomplete="off"></label>
+          <label>Секретный ключ приложения <input name="youtube.clientSecret" type="password" autocomplete="off"></label>
           <div class="row"><button type="button" data-connect="youtube">Войти в YouTube</button><span data-state="youtube"></span></div>
         </fieldset>
         <fieldset>
           <legend>TikTok</legend>
-          <label>Client key <input name="tiktok.clientKey" autocomplete="off"></label>
-          <label>Client secret <input name="tiktok.clientSecret" type="password" autocomplete="off"></label>
+          <label>Ключ приложения (Client key) <input name="tiktok.clientKey" autocomplete="off"></label>
+          <label>Секретный ключ приложения <input name="tiktok.clientSecret" type="password" autocomplete="off"></label>
           <div class="row"><button type="button" data-connect="tiktok">Войти в TikTok</button><span data-state="tiktok"></span></div>
         </fieldset>
         <fieldset>
           <legend>Instagram</legend>
-          <p class="hint">Официальный API Instagram берёт видео только по публичной ссылке, поэтому Reels выкладываются вручную: приложение даёт готовый файл, копирует подпись и показывает шаги. Ключи не нужны.</p>
+          <p class="hint">Reels выкладываются вручную: приложение даёт готовый файл, копирует подпись и показывает шаги. Ключи не нужны.</p>
         </fieldset>
         <fieldset>
           <legend>Монтаж</legend>
           <label>Папка своей музыки <input name="folders.music" placeholder="по умолчанию Документы\Поссум\Музыка"></label>
-          <label class="check"><input name="allowName" type="checkbox"> Называть зверька по имени в подписях</label>
         </fieldset>
         <div class="row"><button type="submit" class="primary">Сохранить</button><span id="saved"></span></div>
       </form>

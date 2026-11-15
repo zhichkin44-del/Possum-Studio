@@ -1,10 +1,15 @@
-// ffmpeg/ffprobe: поиск (переменная → ffmpeg-static в приложении → PATH), запуск, сигналы ролика по 0,25 с.
+// ffmpeg/ffprobe: поиск (переменная → ffmpeg-static в приложении → PATH), запуск, сигналы ролика (шаг 0,25 с, у длинных — больше), прокси 720p.
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { frameStats, FW as W, FH as H } from './frames.js';
 
 const require = createRequire(import.meta.url);
 export const STEP = 0.25;
-const W = 64, H = 96;
+export const MAX_SAMPLES = 2400;
+/** Шаг сигналов: 0,25 с, но не больше 2 400 замеров на клип. */
+export const stepFor = (duration) => Math.max(STEP, Math.ceil(((duration || 0) / MAX_SAMPLES) * 4) / 4);
+const ratio = (s) => { const [a, b] = String(s ?? '0/1').split('/').map(Number); return b ? a / b : a || 0; };
+const HDR_TRC = new Set(['smpte2084', 'arib-std-b67']);
 
 const works = (b) => { try { return b && spawnSync(b, ['-version'], { stdio: 'ignore', windowsHide: true }).status === 0 ? b : null; } catch { return null; } };
 const unasar = (p) => (p ? p.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1') : p);
@@ -56,34 +61,56 @@ export function createMedia(env = process.env) {
     const rotSide = (v.side_data_list ?? []).find((x) => x.rotation !== undefined)?.rotation;
     const rot = Math.abs(Number(v.tags?.rotate ?? rotSide ?? 0));
     if (rot === 90 || rot === 270) [w, h] = [h, w];
+    const fps = ratio(v.avg_frame_rate) || ratio(v.r_frame_rate);
+    const rfps = ratio(v.r_frame_rate);
     return {
       duration: Number(j.format?.duration ?? v.duration ?? 0),
       width: w, height: h,
       hasAudio: (j.streams ?? []).some((s) => s.codec_type === 'audio'),
       size: Number(j.format?.size ?? 0),
+      fps: Math.round(fps * 100) / 100,
+      vfr: fps > 0 && rfps > 0 && Math.abs(rfps - fps) / fps > 0.02,
+      hdr: HDR_TRC.has(v.color_transfer),
+      codec: v.codec_name ?? '',
+      created: j.format?.tags?.creation_time ?? null,
     };
   }
 
-  /** Движение (средняя разница соседних кадров), яркость (0–255) и громкость (дБ) — по окнам 0,25 с. */
-  async function signals(path) {
-    const info = await probe(path);
-    const v = await ffmpeg(['-i', path, '-an', '-vf', `fps=${1 / STEP},scale=${W}:${H},format=gray`, '-f', 'rawvideo', '-'], { binary: true });
-    const frame = W * H, n = Math.floor(v.stdout.length / frame);
-    const motion = [], luma = [];
+  /** Прокси для разбора: 720p по короткой стороне, 30 к/с постоянная, H.264 BT.709 (HDR → тонмаппинг). */
+  async function proxy(src, out, info) {
+    const i = info ?? await probe(src);
+    const size = "scale='if(gt(iw,ih),-2,720)':'if(gt(iw,ih),720,-2)'";
+    const tone = 'zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,';
+    const vf = `${i.hdr ? tone : ''}${size},fps=30,format=yuv420p`;
+    const audio = i.hasAudio ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : ['-an'];
+    await ffmpeg(['-y', '-i', src, '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
+      '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', ...audio, '-movflags', '+faststart', out], { timeoutMs: 1_800_000 });
+    return out;
+  }
+
+  /** По шагу: движение (разница соседних кадров), яркость, насыщенность, резкость, dHash, громкость (дБ). */
+  async function signals(path, { info: given } = {}) {
+    const info = given ?? await probe(path);
+    const step = stepFor(info.duration);
+    const v = await ffmpeg(['-i', path, '-an', '-vf', `fps=${1 / step},scale=${W}:${H},format=rgb24`, '-f', 'rawvideo', '-'], { binary: true, timeoutMs: 1_800_000 });
+    const frame = W * H * 3, n = Math.floor(v.stdout.length / frame);
+    const motion = [], luma = [], sat = [], sharp = [], hash = [];
     for (let i = 0; i < n; i++) {
-      let sum = 0, diff = 0;
-      for (let k = 0; k < frame; k++) {
-        const p = v.stdout[i * frame + k];
-        sum += p;
-        if (i > 0) diff += Math.abs(p - v.stdout[(i - 1) * frame + k]);
+      const f = frameStats(v.stdout, i * frame);
+      luma.push(f.luma); sat.push(f.sat); sharp.push(f.sharp); hash.push(f.hash);
+      if (i === 0) { motion.push(0); continue; }
+      let diff = 0;
+      for (let k = 0; k < W * H; k++) {
+        const o = i * frame + k * 3, p = o - frame;
+        diff += Math.abs((0.299 * v.stdout[o] + 0.587 * v.stdout[o + 1] + 0.114 * v.stdout[o + 2])
+          - (0.299 * v.stdout[p] + 0.587 * v.stdout[p + 1] + 0.114 * v.stdout[p + 2]));
       }
-      luma.push(sum / frame);
-      motion.push(i > 0 ? diff / frame : 0);
+      motion.push(diff / (W * H));
     }
     const loud = Array(n).fill(-90);
     if (info.hasAudio) {
-      const rate = 8000, win = rate * STEP;
-      const a = await ffmpeg(['-i', path, '-vn', '-ac', '1', '-ar', String(rate), '-f', 's16le', '-'], { binary: true });
+      const rate = 8000, win = Math.round(rate * step);
+      const a = await ffmpeg(['-i', path, '-vn', '-ac', '1', '-ar', String(rate), '-f', 's16le', '-'], { binary: true, timeoutMs: 1_800_000 });
       const samples = Math.floor(a.stdout.length / 2);
       for (let i = 0; i < n; i++) {
         let sq = 0, c = 0;
@@ -91,8 +118,8 @@ export function createMedia(env = process.env) {
         if (c) loud[i] = Math.max(-90, 10 * Math.log10(sq / c + 1e-12));
       }
     }
-    return { step: STEP, motion, loud, luma, info };
+    return { step, motion, loud, luma, sat, sharp, hash, info };
   }
 
-  return { tools, ffmpeg, probe, signals };
+  return { tools, ffmpeg, probe, signals, proxy };
 }

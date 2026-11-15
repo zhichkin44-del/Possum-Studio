@@ -12,16 +12,41 @@ import { renderPlan, makeCover } from './render.js';
 
 const stamp = (d = new Date()) => d.toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1-');
 
+// первая буква заглавная, точка в конце
+const sentence = (t) => { const x = String(t ?? '').trim(); return x ? x[0].toUpperCase() + x.slice(1) + (/[.!?…]$/.test(x) ? '' : '.') : ''; };
+
+/** Если из одного видео больше двух кусков — почему (правило «не больше двух, пока хватает других»). */
+function manyFromOne(sources = []) {
+  const n = {};
+  for (const x of sources) n[x.file] = (n[x.file] ?? 0) + 1;
+  return Object.entries(n).filter(([, k]) => k > 2).map(([f, k]) => `Из видео «${f}» ${k} куска: других подходящих видео не хватило.`);
+}
+
+/** Служебные заметки для владельца (не для ленты): совет и забота о зверьке. */
+export function notesText(m) {
+  return [
+    'Это заметки для вас, не для публикации.', '',
+    `Совет: ${m.advice.verdict}. ${sentence(m.advice.why)}`,
+    ...(m.needsReview ? [`Проверьте: ${sentence(m.needsReview)}`] : []),
+    ...(m.sources?.length ? ['', 'Из чего собран ролик (проверьте каждый момент):', ...m.sources.map((x, k) => `${k + 1}. ${x.at}–${x.to} в ролике${x.caption ? ` (${x.caption})` : ''}: видео «${x.file}», ${x.from}–${x.till}`)] : []),
+    ...manyFromOne(m.sources),
+    ...(m.welfare?.length ? ['', 'Забота о зверьке:', ...m.welfare.map((w) => `• ${w}`)] : []),
+  ].join('\n');
+}
+
+/** Пишет пост.txt (тексты площадок) и заметки.txt (совет и забота). */
+export function writePost(dir, m) {
+  writeFileSync(join(dir, 'пост.txt'), postText(m), 'utf8');
+  writeFileSync(join(dir, 'заметки.txt'), notesText(m), 'utf8');
+}
+
+/** пост.txt — только тексты площадок, его можно копировать целиком. */
 export function postText(m) {
   const p = m.packages;
   return [
-    `Совет: ${m.advice.verdict}. ${m.advice.why}`,
-    ...(m.welfare.length ? ['', 'Забота о зверьке:', ...m.welfare.map((w) => `• ${w}`)] : []),
-    '', `Тексты: ${m.texts.source}${m.texts.fallbackReason ? ` (${m.texts.fallbackReason})` : ''}`,
-    '', '— YouTube Shorts —', p.youtube.title, p.youtube.description, `Теги: ${p.youtube.tags.join(', ')}`,
+    '— YouTube Shorts —', p.youtube.title, p.youtube.description, `Теги: ${p.youtube.tags.join(', ')}`,
     '', '— TikTok —', p.tiktok.caption,
     '', '— Instagram Reels —', p.instagram.caption,
-    '', 'Файлы:', ...Object.entries(m.outputs).map(([k, v]) => `${k}: ${v}`),
   ].join('\n');
 }
 
@@ -42,10 +67,11 @@ export async function processVideo({ src, outRoot, settings = {}, media, ai, ass
   const welfare = welfareNotes(analysis);
 
   onStep('Пишу тексты');
-  const texts = await ai.suggest({ duration: analysis.duration, peaks: analysis.peaks, dark: analysis.dark, advice });
+  const speciesName = settings.speciesName?.ru ? settings.speciesName : null;
+  const texts = await ai.suggest({ duration: analysis.duration, peaks: analysis.peaks, dark: analysis.dark, advice, species: speciesName?.ru });
   const petNames = settings.petNames ?? [];
   const allowName = Boolean(settings.allowName);
-  const packages = buildPackages(texts, { petNames, allowName });
+  const packages = buildPackages(texts, { petNames, allowName, speciesName });
   const capRu = allowName ? texts.titleRu : stripNames(texts.titleRu, petNames);
   const capEn = allowName ? texts.titleEn : stripNames(texts.titleEn, petNames);
 
@@ -75,7 +101,7 @@ export async function processVideo({ src, outRoot, settings = {}, media, ai, ass
     plans,
   };
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
-  writeFileSync(join(dir, 'пост.txt'), postText(manifest), 'utf8');
+  writePost(dir, manifest);
   rmSync(work, { recursive: true, force: true });
   onStep('Готово');
   return manifest;

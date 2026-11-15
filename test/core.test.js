@@ -9,7 +9,8 @@ import { makePlan, PROFILES } from '../core/plan.js';
 import { advise } from '../core/advise.js';
 import { welfareNotes } from '../core/welfare.js';
 import { buildPackages, stripNames } from '../core/packages.js';
-import { loadSettings, saveSettings, maskSettings, redactSecrets, settingsPath } from '../core/settings.js';
+import { loadSettings, saveSettings, maskSettings, redactSecrets, settingsPath, setVault } from '../core/settings.js';
+import { fakeVault } from './vault.js';
 import { createAi, templateTexts } from '../core/ai.js';
 import { createLog } from '../core/publishedlog.js';
 
@@ -113,6 +114,7 @@ test('packages: имени питомца нет нигде, #Shorts в YouTube,
   assert.ok(p.tiktok.caption.length <= 2200);
   assert.ok(p.instagram.caption.length <= 2200);
   assert.ok(p.youtube.tags.length >= 1);
+  assert.doesNotMatch(all, /sugar glider jumps/i, 'английского заголовка в подписях нет');
   assert.doesNotMatch(stripNames('Пип и мандарин', ['Пип']), /Пип/);
   assert.match(stripNames('Пип и мандарин', ['Пип']), /^Мандарин$/);
 });
@@ -123,6 +125,7 @@ test('packages: владелец может разрешить имя флажк
 });
 
 test('settings: сохраняются, ключи замаскированы, секреты вырезаются из ошибок', () => {
+  setVault(fakeVault());
   const dir = mkdtempSync(join(tmpdir(), 'possum-set-'));
   const path = join(dir, 'settings.json');
   assert.deepEqual(loadSettings(path).youtube, {});
@@ -174,4 +177,14 @@ test('publishedlog: второй раз то же видео на ту же пл
   assert.equal(log.was('C:/out/a.mp4', 'tiktok'), false);
   assert.ok(existsSync(join(dir, 'published.jsonl')));
   assert.match(readFileSync(join(dir, 'published.jsonl'), 'utf8'), /abc/);
+});
+
+test('packages: в TikTok есть описание, а не только заголовок и теги', () => {
+  const p = buildPackages({ titleRu: 'Пять моментов', descRu: 'Собрали лучшие моменты — какой самый милый?', tags: [] });
+  const lines = p.tiktok.caption.split('\n');
+  assert.equal(lines[0], 'Пять моментов');
+  assert.ok(lines.includes('Собрали лучшие моменты — какой самый милый?'), p.tiktok.caption);
+  assert.match(lines.at(-1), /^#/);
+  const empty = buildPackages({ titleRu: 'Пять моментов', descRu: '', tags: [] });
+  assert.equal(empty.tiktok.caption.split('\n').length, 2, 'без описания пустой строки нет');
 });

@@ -96,3 +96,30 @@ export async function makeCover({ video, at, out, media }) {
   await media.ffmpeg(['-y', '-ss', f3(at), '-i', video, '-frames:v', '1', '-q:v', '2', out]);
   return out;
 }
+
+/**
+ * Время кадра для обложки: резкий, нормально освещённый, без смазки; самые края ролика не берём.
+ * Кадр, где что-то движется (умеренно), лучше неподвижного: в пустой сцене (пустая ванна) движения нет,
+ * а резкая смена картинки на склейке — не движение зверька.
+ */
+export function bestCoverAt(sig) {
+  const step = sig?.step, sharp = sig?.sharp ?? [], n = sharp.length;
+  if (!step || !n) return null;
+  const dur = sig.info?.duration ?? n * step;
+  const maxSharp = Math.max(...sharp, 1e-9);
+  // сначала только нормально освещённые кадры (не тёмные и не пересвеченные); нет таких — любые
+  const lit = (i) => { const y = sig.luma?.[i] ?? 120; return y >= 60 && y <= 200; };
+  const anyLit = sharp.some((_, i) => i * step >= 0.5 && i * step <= dur - 0.5 && lit(i));
+  let best = null, bestScore = -1;
+  for (let i = 0; i < n; i++) {
+    const t = i * step;
+    if (t < 0.5 || t > dur - 0.5) continue;
+    if (anyLit && !lit(i)) continue;
+    const l = ((sig.luma?.[i] ?? 120) - 120) / 60;
+    const m = sig.motion?.[i] ?? 0;
+    const live = m < 1 ? 0.5 : m <= 15 ? 1 : 1 / (1 + (m - 15) / 5);
+    const score = (sharp[i] / maxSharp) * Math.exp(-l * l) * live;
+    if (score > bestScore) { bestScore = score; best = t; }
+  }
+  return best == null ? null : Math.round(best * 100) / 100;
+}

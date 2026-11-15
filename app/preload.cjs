@@ -1,16 +1,37 @@
 // Мост окно ↔ приложение: окно не видит Node, ключей и файлов — только эти вызовы.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+const on = (ch) => (fn) => { ipcRenderer.on(ch, (_e, v) => fn(v)); };
 
 contextBridge.exposeInMainWorld('possum', {
   state: () => ipcRenderer.invoke('state'),
-  job: (id) => ipcRenderer.invoke('job', id),
   redo: (id) => ipcRenderer.invoke('redo', id),
   scan: () => ipcRenderer.invoke('scan'),
   open: (what) => ipcRenderer.invoke('open', what),
   pick: () => ipcRenderer.invoke('pick'),
+  addPaths: (paths) => ipcRenderer.invoke('inbox:add', paths),
+  pathOf: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  calendar: () => ipcRenderer.invoke('calendar'),
+  slot: (id) => ipcRenderer.invoke('slot', id),
+  pickTitle: (id, ab) => ipcRenderer.invoke('calendar:pick', { id, ab }),
+  skip: (id) => ipcRenderer.invoke('calendar:skip', id),
+  confirmPets: (marks) => ipcRenderer.invoke('pets:confirm', marks),
+  setReference: () => ipcRenderer.invoke('species:reference'),
+  setSpecies: (name) => ipcRenderer.invoke('species:set', name),
+  removeMoment: (id, idx) => ipcRenderer.invoke('moment:remove', { id, idx }),
+  pairStatus: () => ipcRenderer.invoke('pair:status'),
+  pairSetup: (role) => ipcRenderer.invoke('pair:setup', role),
+  pairCreate: () => ipcRenderer.invoke('pair:create'),
+  pairJoin: (code) => ipcRenderer.invoke('pair:join', code),
+  solo: () => ipcRenderer.invoke('wizard:solo'),
   settings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch) => ipcRenderer.invoke('settings:save', patch),
+  aiPrice: () => ipcRenderer.invoke('ai:price'),
   connect: (kind) => ipcRenderer.invoke('connect', kind),
   publish: (id, platforms) => ipcRenderer.invoke('publish', { id, platforms }),
-  onJobs: (fn) => { ipcRenderer.on('jobs', (_e, list) => fn(list)); },
+  onJobs: on('jobs'),
+  onProgress: on('progress'),
+  onBatch: on('batch'),
+  onReceived: on('received'),
+  onCopy: on('copy'),
 });
