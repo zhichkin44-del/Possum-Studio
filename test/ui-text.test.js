@@ -23,7 +23,7 @@ test('экран ролика: «перед выкладкой» — одна п
 
 test('карточка календаря: можно сразу выложить', () => {
   const card = app.slice(app.indexOf('function slotCard'), app.indexOf('async function loadCalendar'));
-  assert.match(card, /data-open[^>]*>Открыть и выложить</);
+  assert.match(card, /data-open[^>]*>Посмотреть перед выкладкой</);
 });
 
 test('листы кадров: превью светлее, выбранная кнопка залита цветом', () => {

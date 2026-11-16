@@ -1,6 +1,6 @@
 // Студия целиком для бота и приложения: настройки, монтаж, вход в площадки, выкладка по кнопке.
 // Ключи живут только в settings.json владельца; наружу (в бот, в окно, в лог) уходят замаскированными.
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSettings, saveSettings, maskSettings, redactSecrets, settingsPath, oldKeyWarning, NO_CRYPTO, NO_CRYPTO_SIGNIN } from './settings.js';
 import { createMedia } from './media.js';
@@ -15,6 +15,9 @@ import { createPairing } from './pairing.js';
 import { createSpecies, createClipEmbedder } from './species.js';
 import { createPrivacy } from './privacy.js';
 import { processVideo } from './pipeline.js';
+import { pickScenario, aiScenario, coverage, dayKey } from './director.js';
+import { catalog } from './ideas.js';
+import { ask } from './mentor.js';
 import { publishOne, PLATFORMS } from './publish/index.js';
 import { createLog } from './publishedlog.js';
 import { signIn } from './oauth.js';
@@ -63,6 +66,28 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return (pv = createPrivacy({ embedder: embedder(), labels }));
   };
 
+  // «Что снять сегодня»: сценарий пишется раз в день (ИИ — если есть ключ) и лежит в .today.json; монтаж идёт по последнему.
+  const todayPath = join(dataRoot, '.today.json');
+  const storedToday = () => { try { return JSON.parse(readFileSync(todayPath, 'utf8')).scenario ?? null; } catch { return null; } };
+  async function today({ refresh = false } = {}) {
+    let scenario = storedToday();
+    if (refresh || !scenario || scenario.date !== dayKey(now())) {
+      const s = settings();
+      const base = pickScenario({ now: now(), history: calendar().history() });
+      scenario = await aiScenario(aiFactory({ apiKey: s.claudeKey, model: s.model, fetchImpl }), base);
+      mkdirSync(dataRoot, { recursive: true });
+      writeFileSync(todayPath, JSON.stringify({ scenario }, null, 2));
+    }
+    return { scenario, coverage: coverage(scenario, library().all()) };
+  }
+
+  /** «Идеи и советы»: каталог идей и наставник. Имя питомца в нейросеть не уходит. */
+  const ideas = () => catalog();
+  async function mentor(question, history = []) {
+    const s = settings();
+    return ask(question, { ai: aiFactory({ apiKey: s.claudeKey, model: s.model, fetchImpl }), history, petNames: s.petNames ?? [] });
+  }
+
   /** Пачка видео целиком: разбор → сюжеты → пакеты → слоты календаря. Ничего не выкладывает. */
   function makeProducer() {
     const s = settings();
@@ -72,6 +97,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
       lib: library(), calendar: calendar(), vision, media, outRoot, workRoot: join(dataRoot, '.work'),
       font: findFont(), musicList: listMusic(s.folders?.music ?? join(dataRoot, 'Музыка')), petNames: s.petNames ?? [], now,
       ai: aiFactory({ apiKey: s.claudeKey, model: s.model, fetchImpl }),
+      scenario: storedToday(),
       species: species(), privacy: privacy(), privacyPad: privacy().pad ?? 1, speciesName: s.speciesName?.ru ? s.speciesName : null,
     });
   }
@@ -228,7 +254,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
 
   return {
     outRoot, settingsPath: path, process, publish, connect, status, readManifest,
-    runBatch, confirmPets, setReference, setSpecies, upcoming, pickTitle, removeMoment, pairing, pairSetup, library, calendar,
+    today, ideas, mentor, runBatch, confirmPets, setReference, setSpecies, upcoming, pickTitle, removeMoment, pairing, pairSetup, library, calendar,
     skip: (id) => calendar().skip(id),
     disk: () => diskFree(dataRoot),
     masked: () => { const m = maskSettings(settings()); const w = oldKeyWarning(path); if (w) m.warning = w; return m; },

@@ -138,6 +138,11 @@ function wire({ root, inDir }) {
   });
   ipcMain.handle('inbox:add', async (_e, paths) => (await intake(Array.isArray(paths) ? paths.filter((p) => typeof p === 'string' && p) : [])).copied);
 
+  // «Что снять сегодня»: сценарий дня и что из него уже снято
+  ipcMain.handle('today', (_e, opts) => need().today({ refresh: Boolean(opts?.refresh) }));
+  ipcMain.handle('ideas', () => need().ideas());
+  ipcMain.handle('mentor', (_e, opts) => need().mentor(String(opts?.q ?? ''), Array.isArray(opts?.history) ? opts.history.slice(-4) : []));
+
   // Календарь и решения
   ipcMain.handle('calendar', () => {
     const u = need().upcoming();

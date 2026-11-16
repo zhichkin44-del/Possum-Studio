@@ -25,6 +25,8 @@ function go(name) {
   document.body.classList.toggle('inWizard', name === 'wizard');
   if (name === 'settings') loadSettings();
   if (name === 'calendar') loadCalendar();
+  if (name === 'today') loadToday();
+  if (name === 'ideas') loadIdeas();
 }
 document.querySelectorAll('.side button').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
 
@@ -139,7 +141,7 @@ function renderConfirm(box, l, d) {
   box.innerHTML = `<h3>Разобрано видео: ${l.n}. Отметьте, где ваш зверёк</h3>
     <p class="hint">${esc(d.text ?? '')}</p>
     <ul class="pets">${d.clips.map((c) => `<li data-id="${esc(c.id)}">
-      ${c.sheet ? `<img src="${fileUrl(c.sheet)}" alt="">` : '<div class="nocover">🐾</div>'}
+      ${c.sheet ? `<img src="${fileUrl(c.sheet)}" alt="">` : '<div class="nocover">🐾<small>кадр ещё не готов</small></div>'}
       <span class="name" title="${esc(c.name)}">${esc(nice(c.name))}</span>
       <div class="row"><button data-yes>Мой зверёк</button><button data-no>Не он</button>${c.video ? `<button class="link" data-video>Открыть видео</button>` : ''}</div>
       <span class="picked">ещё не отмечено</span></li>`).join('')}</ul>
@@ -207,7 +209,7 @@ async function refresh() {
   jobs = st.jobs;
   // полный путь — только во всплывающей подсказке: на экране он длинный и пугает; папку открывает кнопка «Открыть папку»
   const toOwner = st.pair?.role === 'partner' && st.pair?.paired;
-  $('#inHint').textContent = toOwner ? 'Видео уходят монтажёру сами.' : `Папка «Входящие»${st.disk != null ? ` · свободно ${gb(st.disk)}` : ''}`;
+  $('#inHint').textContent = toOwner ? 'Видео уходят монтажёру сами.' : `Всё снятое — здесь${st.disk != null ? ` · свободно на диске ${gb(st.disk)}` : ''}`;
   $('#inHint').title = st.inDir ?? '';
   $('#startError').hidden = !st.error;
   $('#startError').textContent = st.error ? `Студия не запустилась: ${st.error}` : '';
@@ -221,6 +223,97 @@ async function refresh() {
   return st;
 }
 
+// ——— Что снять сегодня ———
+let todayBusy = false;
+function renderToday({ scenario: s, coverage: c }) {
+  const shots = c?.shots ?? s.shots;
+  const done = c?.done ?? 0;
+  $('#todayCard').innerHTML = `
+    <h3>${esc(s.title)}</h3>
+    <p class="hint">${esc(KIND[s.kind] ?? s.kind)} · крючок: «${esc(s.hook)}» · ${s.source === 'ИИ' ? 'сценарий написал ИИ' : 'сценарий по шаблону'}</p>
+    ${s.fallbackReason ? `<p class="hint">${esc(s.fallbackReason)}</p>` : ''}
+    <p><b class="${done === shots.length && shots.length ? 'ok' : ''}">Снято ${done} из ${shots.length}</b>${c?.missing?.length ? ` · не хватает: ${c.missing.map((n) => `№${n}`).join(', ')}` : ''}</p>
+    <ol class="shots">${shots.map((x) => `<li class="${x.have ? 'have' : ''}">
+      <div><b>${x.have ? '✓' : '○'} ${esc(x.what)}</b> <span class="hint">· ${esc(x.secs)}</span></div>
+      <div class="hint">Угол: ${esc(x.angle)}</div>
+      <div class="hint">Свет: ${esc(x.light)}</div>
+    </li>`).join('')}</ol>
+    <p class="note">${esc(s.note)}</p>
+    <p class="hint">Снятое закидывай в «Отснятое» — галочки встанут сами, монтаж пойдёт по порядку кадров.</p>`;
+}
+async function loadToday(refresh = false) {
+  if (todayBusy) return;
+  todayBusy = true;
+  try { renderToday(await api.today(refresh)); }
+  catch (e) { $('#todayCard').innerHTML = `<p class="bad">Сценарий не получился: ${esc(e?.message ?? e)}</p>`; }
+  finally { todayBusy = false; }
+}
+$('#todayNew').onclick = () => loadToday(true);
+
+// ——— Идеи и советы: каталог сюжетов + наставник ———
+let cat = null;      // каталог из core/ideas.js
+let catFilter = 'all';
+const chat = [];     // [{q, a}] — только в окне, на диск не пишем
+const lis = (xs) => `<ul>${xs.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
+function ideaCard(i, open = false) {
+  return `<details class="card idea" id="idea-${esc(i.id)}"${open ? ' open' : ''}>
+    <summary><b>${esc(i.title)}</b> <span class="hint">· ${esc(KIND[i.kind] ?? i.kind)} · «${esc(i.hook)}»</span></summary>
+    <p>${esc(i.why)}</p>
+    <h4>Кадры по порядку</h4>
+    <ol class="shots">${i.shots.map((s) => `<li><div><b>${esc(s.what)}</b> <span class="hint">· ${esc(s.secs)}</span></div><div class="hint">Угол: ${esc(s.angle)}</div></li>`).join('')}</ol>
+    <p class="hint">Свет на всех кадрах: ${esc(i.shots[0]?.light ?? '')}</p>
+    <h4>Как снимать</h4>${lis(i.how)}
+    <h4>Как выложить</h4>
+    <p>Подпись: «${esc(i.post.caption)}»</p><p class="hint">${esc(i.post.format)}</p>
+    <div class="bw"><div class="better"><h4>Так лучше</h4>${lis(i.better)}</div><div class="worse"><h4>Так хуже</h4>${lis(i.worse)}</div></div>
+    <p class="note">${esc(i.welfare)}</p>
+  </details>`;
+}
+function renderIdeas() {
+  const cats = [['all', 'Все'], ...cat.categories];
+  $('#ideaCats').innerHTML = cats.map(([id, label]) => `<button data-cat="${esc(id)}" class="${id === catFilter ? 'on' : ''}">${esc(label)}</button>`).join('');
+  const list = cat.ideas.filter((i) => catFilter === 'all' || i.cat === catFilter);
+  $('#ideaList').innerHTML = list.map((i) => ideaCard(i)).join('') || '<p class="hint">В этой теме пока пусто.</p>';
+  const nc = cat.noCostume;
+  $('#ideaRules').innerHTML = `
+    <div class="card no"><h3>${esc(nc.title)}</h3><p>${esc(nc.why)}</p><h4>Вместо этого</h4>${lis(nc.instead)}</div>
+    <details class="card"><summary><b>Чем угощать — и чем нельзя</b></summary>
+      <p class="hint">Крошечный кусочек, мельче горошины, вместо части обычного ужина. Вымыть и порезать.</p>
+      <div class="bw"><div class="better"><h4>Можно</h4>${lis(cat.safe)}</div><div class="worse"><h4>Нельзя никогда</h4>${lis(cat.forbidden)}</div></div>
+    </details>
+    <details class="card"><summary><b>Как вести TikTok, Reels, Shorts</b></summary>
+      ${cat.posting.map((p) => `<h4>${esc(p.title)}</h4><div class="bw"><div class="better"><p>${esc(p.better)}</p></div><div class="worse"><p>${esc(p.worse)}</p></div></div>`).join('')}
+    </details>`;
+}
+async function loadIdeas() {
+  if (cat) return;
+  try { cat = await api.ideas(); renderIdeas(); }
+  catch (e) { $('#ideaList').innerHTML = `<p class="bad">Идеи не загрузились: ${esc(errText(e))}</p>`; }
+}
+$('#ideaCats').onclick = (ev) => { const b = ev.target.closest('button[data-cat]'); if (!b || !cat) return; catFilter = b.dataset.cat; renderIdeas(); };
+function openIdea(id) {
+  if (!cat) return;
+  if (catFilter !== 'all' && !cat.ideas.some((i) => i.id === id && i.cat === catFilter)) { catFilter = 'all'; renderIdeas(); }
+  const el = document.getElementById(`idea-${id}`);
+  if (el) { el.open = true; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+function renderChat() {
+  const title = (id) => cat?.ideas.find((i) => i.id === id)?.title ?? id;
+  $('#askLog').innerHTML = chat.map((m) => `<div class="q">${esc(m.q)}</div><div class="a">${m.a == null ? '<span class="hint">думаю…</span>' : `<pre>${esc(m.a)}</pre>${(m.ideaIds ?? []).length ? `<div class="row">${m.ideaIds.map((id) => `<button data-idea="${esc(id)}">Открыть идею: ${esc(title(id))}</button>`).join('')}</div>` : ''}${m.source === 'catalog' ? '<p class="hint">Наставник отдыхает — вот проверенные советы.</p>' : ''}`}</div>`).join('');
+}
+$('#askLog').onclick = (ev) => { const b = ev.target.closest('button[data-idea]'); if (b) openIdea(b.dataset.idea); };
+$('#askForm').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const q = $('#askQ').value.trim();
+  if (!q || $('#askGo').disabled) return;
+  $('#askGo').disabled = true; $('#askQ').value = '';
+  const history = chat.filter((m) => m.a != null).slice(-4).map(({ q: hq, a }) => ({ q: hq, a }));
+  const m = { q, a: null }; chat.push(m); renderChat();
+  try { await loadIdeas(); const r = await api.mentor(q, history); Object.assign(m, { a: r.answer, ideaIds: r.ideaIds, source: r.source }); }
+  catch (e) { m.a = `Не получилось ответить: ${errText(e)}`; }
+  finally { $('#askGo').disabled = false; renderChat(); }
+};
+
 // ——— Календарь ———
 function slotCard(s, past = false) {
   const li = document.createElement('li');
@@ -228,12 +321,12 @@ function slotCard(s, past = false) {
   const t = s.titles ?? {};
   const state = s.status === 'published' ? '<span class="badge done">выложено</span>' : s.status === 'skipped' ? '<span class="badge">пропущено</span>' : s.needsReview ? '<span class="badge working">посмотрите</span>' : '<span class="badge done">готово</span>';
   li.innerHTML = `
-    ${s.cover ? `<img src="${fileUrl(s.cover)}" alt="">` : '<div class="nocover">🐾</div>'}
+    ${s.cover ? `<img src="${fileUrl(s.cover)}" alt="">` : '<div class="nocover">🐾<small>кадр ещё не готов</small></div>'}
     <div class="sbody">
       <div class="row"><b>${esc(dayName(s))}</b><span class="kind">${esc(KIND[s.kind] ?? s.kind)}</span>${state}${!past && s.textsSource !== 'claude' ? '<span class="badge working" title="Тексты этого ролика собраны по шаблону (Claude их не писал) — проверьте перед выкладкой">тексты по шаблону</span>' : ''}</div>
       ${t.A?.ru ? `<div class="titles">${['A', 'B'].filter((k) => t[k]?.ru).map((k) => `<label class="${pick === k ? 'on' : ''}"><input type="radio" name="t-${esc(s.id)}" value="${k}" ${pick === k ? 'checked' : ''} ${past ? 'disabled' : ''}> ${k}: ${esc(t[k].ru)}</label>`).join('')}</div>` : ''}
       ${s.why ? `<p class="hint">${esc(s.why)}</p>` : ''}
-      ${past ? '' : '<div class="row"><button class="primary" data-open>Открыть и выложить</button><button data-skip>Не выкладывать</button></div>'}
+      ${past ? '' : '<div class="row"><button class="primary" data-open>Посмотреть перед выкладкой</button><button data-skip>Не выкладывать</button></div>'}
     </div>`;
   li.querySelectorAll('input[type=radio]').forEach((r) => r.addEventListener('change', async () => { await api.pickTitle(s.id, r.value); loadCalendar(); }));
   li.querySelector('[data-open]')?.addEventListener('click', () => openSlot(s.id));
@@ -379,7 +472,7 @@ async function keyStep() {
     : 'Прайс выбранной модели в приложении не задан — расход покажет сайт, где взят ключ.';
   setTimeout(() => $('#wzKeyIn').focus(), 0);
 }
-function keyDone() { $('#wzKey').hidden = true; $('#wzRole').hidden = false; go('queue'); refresh(); }
+function keyDone() { $('#wzKey').hidden = true; $('#wzRole').hidden = false; go('today'); refresh(); }
 $('#wzKeySave').onclick = async () => {
   const key = $('#wzKeyIn').value.trim();
   if (!key) { $('#wzKeyMsg').innerHTML = '<span class="bad">Вставьте ключ или нажмите «Позже».</span>'; return; }
@@ -394,7 +487,7 @@ $('#wzKeySave').onclick = async () => {
 $('#wzKeyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#wzKeySave').click(); };
 $('#wzKeyLater').onclick = keyDone;
 $('#wzSolo').onclick = async () => { await api.solo(); keyStep(); };
-$('#wzFinish').onclick = () => { if (wzRole === 'partner') { go('queue'); refresh(); } else keyStep(); };
+$('#wzFinish').onclick = () => { if (wzRole === 'partner') { go('today'); refresh(); } else keyStep(); };
 $('#pairAgain').onclick = () => { $('#wzRole').hidden = false; $('#wzCode').hidden = true; $('#wzKey').hidden = true; $('#wzCodeOut').textContent = ''; $('#wzMsg').textContent = ''; go('wizard'); };
 
 // ——— Настройки ———
@@ -437,7 +530,7 @@ document.querySelectorAll('[data-connect]').forEach((b) => b.addEventListener('c
 
 // ——— Готовые от монтажёра (у напарницы) ———
 function renderReceived() {
-  $('#fromList').replaceChildren(...received.slice(-30).reverse().map((n) => { const li = document.createElement('li'); li.innerHTML = `<span class="badge done">новое</span><span class="name">${esc(n)}</span>`; return li; }));
+  $('#fromList').replaceChildren(...received.slice(-30).reverse().map((n) => { const li = document.createElement('li'); li.innerHTML = `<span class="badge done">новое</span><span class="name" title="${esc(n)}">${esc(n)}</span>`; return li; }));
 }
 
 $('#add').onclick = () => api.pick().catch((e) => copyDone({ end: true, error: e.message }));
@@ -459,7 +552,7 @@ api.onCopy((p) => {
   clearTimeout(copyTimer);
   $('#copyBox').hidden = false;
   $('#add').disabled = true;
-  $('#cpTitle').textContent = 'Копирую видео во «Входящие»';
+  $('#cpTitle').textContent = 'Копирую видео в «Отснятое»';
   $('#cpName').textContent = nice(p.name);
   $('#cpCount').textContent = `${Math.min(p.done + 1, p.total)} из ${p.total}${p.bytesTotal ? ` · ${gb(p.bytesDone)} из ${gb(p.bytesTotal)}` : ''}`;
   $('#cpBar').style.width = `${p.bytesTotal ? Math.round((100 * p.bytesDone) / p.bytesTotal) : 0}%`;
@@ -487,10 +580,10 @@ $('#back').onclick = () => go('calendar');
 
 api.onJobs((list) => { jobs = list; renderJobs(); });
 api.onProgress(renderProgress);
-api.onBatch((l) => { renderLast(l); $('#progress').hidden = true; if ($('#calendar').classList.contains('on')) loadCalendar(); });
+api.onBatch((l) => { renderLast(l); $('#progress').hidden = true; if ($('#calendar').classList.contains('on')) loadCalendar(); if ($('#today').classList.contains('on')) loadToday(); });
 api.onReceived((names) => {
   if (pair.role === 'partner') { received.push(...names); renderReceived(); }
   api.pairStatus().then(renderPair).catch(() => {});
 });
 setInterval(() => { if (!pair.paired && pair.role) api.pairStatus().then(renderPair).catch(() => {}); }, 5000);
-refresh();
+refresh().then((st) => { if (!st?.error && $('#today').classList.contains('on')) loadToday(); });

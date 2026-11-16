@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self'; script-src 'self'">
   <title>Поссум Студия</title>
   <link rel="stylesheet" href="style.css">
@@ -9,7 +10,9 @@
 <body>
   <nav class="side">
     <div class="brand">🐾 Поссум Студия</div>
-    <button data-go="queue" class="on">Входящие</button>
+    <button data-go="today" class="on">Что снять сегодня</button>
+    <button data-go="ideas">Идеи и советы</button>
+    <button data-go="queue">Отснятое</button>
     <button data-go="calendar">Календарь</button>
     <button data-go="from" id="navFrom" hidden>Готовые от монтажёра</button>
     <button data-go="settings">Настройки</button>
@@ -56,9 +59,30 @@
       </div>
     </section>
 
-    <section id="queue" class="screen on">
+    <section id="today" class="screen on">
       <header>
-        <h1>Входящие</h1>
+        <h1>Что снять сегодня</h1>
+        <div class="row"><button id="todayNew">Другой сценарий</button></div>
+      </header>
+      <div class="card" id="todayCard"><p class="hint">Готовлю сценарий…</p></div>
+    </section>
+
+    <section id="ideas" class="screen">
+      <header><h1>Идеи и советы</h1></header>
+      <div class="card ask">
+        <h3>Спросить наставника</h3>
+        <p class="hint">Обычными словами: «чем угостить?», «что снять вечером?», «как выложить в тикток?», «можно нарядить?»</p>
+        <div class="askLog" id="askLog"></div>
+        <form class="row" id="askForm"><input id="askQ" maxlength="1000" placeholder="Ваш вопрос…" autocomplete="off"><button id="askGo">Спросить</button></form>
+      </div>
+      <div class="row cats" id="ideaCats"></div>
+      <div id="ideaList"><p class="hint">Загружаю идеи…</p></div>
+      <div id="ideaRules"></div>
+    </section>
+
+    <section id="queue" class="screen">
+      <header>
+        <h1>Отснятое</h1>
         <div class="row">
           <button id="add" class="primary">Добавить видео</button>
           <button id="openIn">Открыть папку</button>
@@ -88,7 +112,7 @@
       </header>
       <p class="hint" id="calHint"></p>
       <ul class="slots" id="slots"></ul>
-      <p class="empty" id="calEmpty">Роликов пока нет. Закиньте видео во «Входящие».</p>
+      <p class="empty" id="calEmpty">Роликов пока нет. Закиньте видео в «Отснятое».</p>
       <details id="histBox"><summary>Уже выложено и пропущено</summary><ul class="slots" id="hist"></ul></details>
     </section>
 

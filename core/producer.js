@@ -3,6 +3,7 @@
 import { mkdirSync, statfsSync, writeFileSync, readFileSync, renameSync, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { makeSheet } from './vision.js';
+import { orderByScenario } from './director.js';
 import { makeStories, commit, whyNotKinds, pieceAround, storyWhy, KINDS, KIND_RU } from './stories.js';
 import { renderStory, storyInputs, coverArgs, pieceAt } from './story-render.js';
 import { makeCover, bestCoverAt } from './render.js';
@@ -168,7 +169,7 @@ export function moreText(s, k, closed = []) {
 
 const NO_PRIVACY = 'проверки лиц и сигарет не было — убедитесь, что в кадре нет людей и сигарет';
 
-export function createProducer({ lib, calendar, vision, media, outRoot, workRoot, font = null, musicList = [], petNames = [], species = null, privacy = null, ai = null, privacyPad = 1, speciesName = null, now = () => Date.now(), maxStories = 7, minFreeBytes = 2e9 }) {
+export function createProducer({ lib, calendar, vision, media, outRoot, workRoot, font = null, musicList = [], petNames = [], species = null, privacy = null, ai = null, scenario = null, privacyPad = 1, speciesName = null, now = () => Date.now(), maxStories = 7, minFreeBytes = 2e9 }) {
   mkdirSync(outRoot, { recursive: true });
   mkdirSync(workRoot, { recursive: true });
 
@@ -461,7 +462,9 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
       if (free === 0) {
         res.decisions.push({ type: 'full', text: 'Календарь на 14 дней заполнен — новые ролики соберу, когда освободится день' });
       } else {
-        const stories = makeStories(pv.view, { history: calendar.history(), now: now(), count: Math.min(maxStories, free), focus });
+        // сюжет того же типа, что сценарий дня, монтируется в порядке кадров сценария
+        const labelsOf = (p) => lib.get(p.clip)?.shots?.[p.shot]?.labels ?? [];
+        const stories = makeStories(pv.view, { history: calendar.history(), now: now(), count: Math.min(maxStories, free), focus }).map((st) => orderByScenario(st, scenario, labelsOf));
         for (const s of stories) {
           if (pv.unchecked && !s.needsReview) s.needsReview = NO_PRIVACY;
           else if (pv.unchecked) s.needsReview = `${s.needsReview}; ${NO_PRIVACY}`;

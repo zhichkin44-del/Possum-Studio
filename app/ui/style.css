@@ -67,7 +67,8 @@ form input:not([type=checkbox]) { font: inherit; padding: 8px 10px; border: 1px 
 .decisions button { padding: 2px 10px; font-size: 13px; margin-left: 6px; }
 .slots { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 10px; }
 .slots li { display: flex; gap: 14px; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
-.slots img, .slots .nocover { width: 72px; aspect-ratio: 9/16; object-fit: cover; border-radius: 6px; background: var(--bg); flex: none; display: grid; place-items: center; font-size: 26px; }
+.slots img, .slots .nocover { width: 72px; aspect-ratio: 9/16; object-fit: cover; border-radius: 6px; background: var(--bg); flex: none; display: grid; place-items: center; font-size: 26px; text-align: center; }
+.nocover small { display: block; font-size: 11px; line-height: 1.2; color: var(--muted); padding: 0 4px; }
 .slots .sbody { flex: 1; display: grid; gap: 6px; min-width: 0; }
 .slots .kind { color: var(--muted); }
 .slots p.hint { margin: 0; font-size: 14px; }
@@ -102,3 +103,44 @@ details.card summary { cursor: pointer; color: var(--muted); }
 .drop b { color: var(--ink); font-weight: 600; }
 body.dragging .drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 body.dragging .drop b::before { content: '⬇ '; }
+
+.shots { padding-left: 20px; display: grid; gap: 10px; margin: 10px 0; }
+.shots li { display: grid; gap: 2px; }
+.shots li.have b { color: var(--ok); }
+
+/* «Идеи и советы» */
+.cats { flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.cats button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+details.card.idea summary { color: var(--ink); font-weight: 600; }
+.idea h4 { margin: 12px 0 4px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+.bw { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.bw > div { padding: 8px 10px; border-radius: 8px; background: var(--bg); }
+.better { border-left: 3px solid var(--ok); }
+.worse { border-left: 3px solid var(--err); }
+.card.no { border-color: var(--err); }
+.card.no h3 { color: var(--err); }
+.askLog { display: grid; gap: 8px; max-height: 340px; overflow-y: auto; margin: 8px 0; }
+.askLog .q { justify-self: end; max-width: 80%; padding: 6px 10px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); }
+.askLog .a { max-width: 90%; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.askLog .a pre { margin: 0; white-space: pre-wrap; font: inherit; }
+.askLog .a button { margin: 6px 6px 0 0; padding: 3px 10px; font-size: 13px; }
+#askForm { flex-wrap: nowrap; }
+#askQ { flex: 1; min-width: 0; }
+@media (max-width: 700px) { .bw { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { #askForm { flex-wrap: wrap; } #askForm button { width: 100%; } }
+/* узкое окно: меню — полоса сверху с прокруткой вбок, экран на всю ширину */
+@media (max-width: 500px) {
+  body { flex-direction: column; }
+  .side { width: auto; flex-direction: row; flex-wrap: wrap; padding: 6px 8px; gap: 4px; border-right: none; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .side button { white-space: nowrap; padding: 5px 9px; font-size: 14px; }
+  .side .brand, .side .status, .side .pairline { display: none; }
+  main { padding: 14px 12px; }
+  /* шапка экрана: заголовок сверху, кнопки ровным рядом на всю ширину */
+  header { flex-wrap: wrap; }
+  header h1 { flex-basis: 100%; }
+  header .row { width: 100%; flex-wrap: nowrap; }
+  header .row button { flex: 1; padding: 8px 6px; }
+  /* имя видео целиком, в две строки, а не обрезанное */
+  .jobs li { flex-wrap: wrap; gap: 6px 10px; }
+  .jobs li .name, .pets .name { white-space: normal; overflow-wrap: anywhere; }
+}

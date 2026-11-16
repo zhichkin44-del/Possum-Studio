@@ -90,6 +90,21 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
 
   return {
     enabled: Boolean(apiKey),
+    /** Любой ответ JSON по схеме (сценарий дня и т. п.): ошибки — исключением, запасной вариант решает вызывающий. */
+    async json({ content, schema, name = 'answer', maxTokens = MAX_OUT }) {
+      if (!apiKey) throw new Error('нет ключа ИИ');
+      try {
+        if (provider === 'openrouter') return (await chatJson({ apiKey, model: useModel, content, schema, name, maxTokens, fetchImpl })).json;
+        const c = await getClient();
+        const res = await c.beta.messages.create({
+          model: useModel, max_tokens: maxTokens, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+          output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+          messages: [{ role: 'user', content }],
+        });
+        if (res.stop_reason === 'refusal') throw new Error('ИИ отказался');
+        return JSON.parse((res.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
+      } catch (e) { throw new Error(clean(e, 200)); }
+    },
     async suggest(facts = {}) {
       if (!apiKey) return fallback(facts, 'нет ключа ИИ — тексты по шаблону');
       if (provider === 'openrouter') return viaOpenRouter(facts);
