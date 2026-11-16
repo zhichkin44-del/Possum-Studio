@@ -76,7 +76,7 @@ export const notRushing = 'Хорошо, не тороплю.';
 export const youreWelcome = 'Пожалуйста!';
 
 // ---------- Саша: своё видео → монтаж → выкладка по кнопке ----------
-export const ownerHelpStudio = 'Пришли видео поссума — смонтирую три версии (YouTube, TikTok, Reels), подскажу, что выкладывать, и выложу по твоей кнопке.\nКоманды: /status — как дела у напарницы, /код — код для неё.\nКлюч Claude и вход в YouTube/TikTok — в приложении «Поссум», раздел «Настройки».';
+export const ownerHelpStudio = 'Пришли видео поссума — смонтирую три версии (YouTube, TikTok, Reels), подскажу, что выкладывать, и выложу по твоей кнопке.\nКоманды: /status — как дела у напарницы, /код — код для неё.\nКлюч ИИ и вход в YouTube/TikTok — в приложении «Поссум», раздел «Настройки».';
 export const ownerNoStudio = 'Монтаж в боте не подключён: запусти бота на компьютере, где стоит приложение «Поссум» и FFmpeg.';
 export const ownerTooBig = 'Telegram не отдаёт боту файлы больше 20 МБ. Пришли короче (до 30 секунд) или положи файл в папку «Входящие» приложения — там ограничения нет.';
 export const ownerBuilding = 'Принял, монтирую три версии. Обычно это 1–3 минуты.';
@@ -93,7 +93,7 @@ export function ownerResult(m) {
     '', `<b>YouTube:</b> ${esc(p.youtube?.title ?? '')}`,
     `<b>TikTok:</b> ${esc(p.tiktok?.caption ?? '')}`,
     `<b>Reels:</b> ${esc(p.instagram?.caption ?? '')}`,
-    '', `Тексты: ${m.texts?.source === 'claude' ? 'Claude' : 'шаблоны (ключ Claude не задан или не ответил)'}`,
+    '', `Тексты: ${m.texts?.source === 'claude' ? 'Claude' : 'шаблоны (ключ ИИ не задан или не ответил)'}`,
   ];
   return lines.join('\n');
 }

@@ -203,7 +203,7 @@ function wire({ root, inDir }) {
   ipcMain.handle('wizard:solo', () => { need().save({ wizardDone: true }); return true; });
 
   ipcMain.handle('settings:get', () => need().masked());
-  ipcMain.handle('ai:price', () => textCost(need().masked().model));
+  ipcMain.handle('ai:price', () => textCost(need().masked().aiModel));
   ipcMain.handle('settings:save', (_e, patch) => need().save(patch));
   ipcMain.handle('connect', async (_e, kind) => {
     if (!['youtube', 'tiktok'].includes(kind)) throw new Error('неизвестная площадка');

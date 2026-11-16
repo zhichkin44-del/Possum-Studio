@@ -278,7 +278,7 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
 
   /** Тексты к ролику от Claude по фактам сюжета; нет ключа, ошибка или запретное слово — шаблон с причиной. */
   async function claudeTexts(story, draft, night) {
-    if (!ai?.enabled) return { source: 'шаблон', reason: 'нет ключа Claude — тексты по шаблону' };
+    if (!ai?.enabled) return { source: 'шаблон', reason: 'нет ключа ИИ — тексты по шаблону' };
     let r;
     try {
       r = await ai.suggest({

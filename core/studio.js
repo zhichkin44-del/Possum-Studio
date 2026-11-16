@@ -9,6 +9,7 @@ import { findFont, listMusic } from './assets.js';
 import { createLibrary } from './library.js';
 import { createCalendar } from './calendar.js';
 import { createVision } from './vision.js';
+import { providerOf } from './openrouter.js';
 import { createProducer, applyPick, diskFree, petFate } from './producer.js';
 import { createPairing } from './pairing.js';
 import { createSpecies, createClipEmbedder } from './species.js';
@@ -65,7 +66,8 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
   /** Пачка видео целиком: разбор → сюжеты → пакеты → слоты календаря. Ничего не выкладывает. */
   function makeProducer() {
     const s = settings();
-    const vision = createVision({ apiKey: s.claudeKey, client: s.claudeKey ? visionClient : null, cachePath: join(dataRoot, '.vision-cost.json'), now, petNames: s.petNames ?? [] });
+    const viaOr = providerOf(s.claudeKey) === 'openrouter'; // OpenRouter: разбор той же моделью, что тексты; Claude: Haiku через SDK
+    const vision = createVision({ apiKey: s.claudeKey, client: s.claudeKey && !viaOr ? visionClient : null, model: viaOr ? s.model : undefined, fetchImpl, cachePath: join(dataRoot, '.vision-cost.json'), now, petNames: s.petNames ?? [] });
     return createProducer({
       lib: library(), calendar: calendar(), vision, media, outRoot, workRoot: join(dataRoot, '.work'),
       font: findFont(), musicList: listMusic(s.folders?.music ?? join(dataRoot, 'Музыка')), petNames: s.petNames ?? [], now,

@@ -90,8 +90,8 @@ test('заметки: если из одного видео больше дву�
   assert.doesNotMatch(notesText(m), /не хватило/);
 });
 
-test('настройки: где взять ключ Claude, без непонятной фразы про доллары', () => {
-  const s = html.slice(html.indexOf('Ключ Claude API'), html.indexOf('<legend>YouTube'));
+test('настройки: где взять ключ ИИ, без непонятной фразы про доллары', () => {
+  const s = html.slice(html.indexOf('Ключ ИИ <input'), html.indexOf('<legend>YouTube'));
   assert.match(s, /console\.anthropic\.com/);
   assert.match(s, /API Keys/);
   assert.match(s, /без ключа всё работает/i);

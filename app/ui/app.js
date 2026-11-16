@@ -175,7 +175,7 @@ function renderConfirm(box, l, d) {
 function renderStatus(s) {
   status = s ?? {};
   if (!s) { $('#status').textContent = ''; return; }
-  const rows = [['claude', 'Claude'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['ffmpeg', 'Монтаж']];
+  const rows = [['claude', 'ИИ'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['ffmpeg', 'Монтаж']];
   // ● — подключено, ○ — нет; подключается в «Настройках»
   $('#status').innerHTML = rows.map(([k, t]) => `<div class="${s[k] ? 'yes' : ''}" title="${t}: ${s[k] ? 'подключено' : 'не подключено — подключите в Настройках'}">${t}</div>`).join('') + '<p class="legend">● подключено · ○ нет — подключите в Настройках</p>';
 }
@@ -368,7 +368,7 @@ $('#wzJoin').onclick = async () => {
   try { const p = await api.pairJoin($('#wzCodeIn').value.trim()); renderPair(p); $('#wzCodeIn').value = ''; $('#wzPartner').hidden = true; $('#wzMsg').innerHTML = '<span class="ok">Соединено. Теперь нажмите «Отправить видео монтажёру» — видео уйдут ему сами.</span>'; }
   catch (e) { $('#wzMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 };
-// Шаг «Ключ Claude» — только для того, кто выкладывает (владелец или «один»). Напарнице ключ не нужен.
+// Шаг «Ключ ИИ» — только для того, кто выкладывает (владелец или «один»). Напарнице ключ не нужен.
 const usd = (x) => (x < 0.01 ? `меньше цента` : `${x.toFixed(2)}`);
 async function keyStep() {
   $('#wzRole').hidden = true; $('#wzCode').hidden = true; $('#wzKey').hidden = false;
@@ -376,7 +376,7 @@ async function keyStep() {
   const c = await api.aiPrice().catch(() => null);
   $('#wzKeyCost').textContent = c
     ? `Расход по прайсу ${c.model} (${c.priceIn} за 1 млн токенов на вход, ${c.priceOut} на выход): обычно около ${usd(c.perClip)} за тексты к одному ролику, не больше ${usd(c.perClipMax)}. Ролик в день — около ${usd(c.perClip * 30)} в месяц.`
-    : 'Прайс выбранной модели в приложении не задан — расход покажет сама консоль Anthropic.';
+    : 'Прайс выбранной модели в приложении не задан — расход покажет сайт, где взят ключ.';
   setTimeout(() => $('#wzKeyIn').focus(), 0);
 }
 function keyDone() { $('#wzKey').hidden = true; $('#wzRole').hidden = false; go('queue'); refresh(); }

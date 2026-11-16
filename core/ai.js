@@ -1,5 +1,6 @@
 // Тексты к ролику: Claude (если владелец дал ключ) или шаблоны — с честной меткой источника.
 import { redactSecrets } from './settings.js';
+import { OR_PRICES, providerOf, modelFor, chatJson } from './openrouter.js';
 
 const SCHEMA = {
   type: 'object',
@@ -41,8 +42,10 @@ function prompt(facts) {
 }
 
 // Прайс Claude, $ за 1 млн токенов (вход / выход). Источник — прайс Anthropic; меняется — правим здесь.
+// Модели OpenRouter — из core/openrouter.js (там же источник цен).
 export const PRICES = {
   'claude-opus-5-5': { in: 4, out: 20 },
+  ...OR_PRICES,
 };
 const MAX_OUT = 1500; // потолок ответа (max_tokens ниже)
 const TYPICAL_OUT = 400; // заголовок RU+EN, описание и до 8 тегов в JSON
@@ -61,7 +64,9 @@ export function textCost(model = 'claude-opus-5-5') {
 const valid = (j) => j && typeof j.titleRu === 'string' && j.titleRu.trim() && typeof j.titleEn === 'string'
   && typeof j.descRu === 'string' && Array.isArray(j.tags);
 
-export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5' } = {}) {
+export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5', fetchImpl = fetch } = {}) {
+  const provider = providerOf(apiKey);
+  const useModel = modelFor(apiKey, model);
   let sdk = client;
   async function getClient() {
     if (sdk) return sdk;
@@ -70,15 +75,28 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
     return sdk;
   }
   const fallback = (facts, reason) => ({ ...templateTexts(facts), source: 'шаблон', fallbackReason: reason });
+  const clean = (e, n) => redactSecrets(e?.message ?? e, { claudeKey: apiKey }).slice(0, n);
+
+  // OpenRouter: source остаётся 'claude' — это признак «писал ИИ» для библиотеки и окна; кто именно — в provider/model.
+  async function viaOpenRouter(facts) {
+    try {
+      const { json: j } = await chatJson({ apiKey, model: useModel, content: prompt(facts), schema: SCHEMA, name: 'post_texts', maxTokens: MAX_OUT, fetchImpl });
+      if (!valid(j)) return fallback(facts, 'ответ OpenRouter неполный — тексты по шаблону');
+      return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), source: 'claude', provider: 'openrouter', model: useModel };
+    } catch (e) {
+      return fallback(facts, `OpenRouter недоступен (${clean(e, 200)}) — тексты по шаблону`);
+    }
+  }
 
   return {
     enabled: Boolean(apiKey),
     async suggest(facts = {}) {
-      if (!apiKey) return fallback(facts, 'нет ключа Claude — тексты по шаблону');
+      if (!apiKey) return fallback(facts, 'нет ключа ИИ — тексты по шаблону');
+      if (provider === 'openrouter') return viaOpenRouter(facts);
       try {
         const c = await getClient();
         const res = await c.beta.messages.create({
-          model,
+          model: useModel,
           max_tokens: MAX_OUT,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
@@ -89,9 +107,9 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
         const text = (res.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('');
         const j = JSON.parse(text);
         if (!valid(j)) return fallback(facts, 'ответ Claude неполный — тексты по шаблону');
-        return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), source: 'claude' };
+        return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), source: 'claude', provider: 'anthropic', model: useModel };
       } catch (e) {
-        return fallback(facts, `Claude недоступен (${redactSecrets(e?.message ?? e, { claudeKey: apiKey }).slice(0, 200)}) — тексты по шаблону`);
+        return fallback(facts, `Claude недоступен (${clean(e, 200)}) — тексты по шаблону`);
       }
     },
   };

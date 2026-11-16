@@ -21,7 +21,7 @@ test('расход на тексты считается по прайсу из �
   assert.equal(textCost('claude-unknown-9'), null, 'неизвестная модель — расход не выдумываем');
 });
 
-test('мастер: карточка «Ключ Claude» с выбором «сейчас / позже» и пояснением про черновые тексты', () => {
+test('мастер: карточка «Ключ ИИ» с выбором «сейчас / позже» и пояснением про черновые тексты', () => {
   assert.match(html, /id="wzKey"/);
   const card = html.slice(html.indexOf('id="wzKey"'), html.indexOf('</div>', html.indexOf('id="wzKeyLater"')));
   assert.match(card, /id="wzKeyIn"[^>]*type="password"/);

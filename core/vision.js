@@ -4,10 +4,11 @@ import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from '
 import { dirname } from 'node:path';
 import { stripNames } from './packages.js';
 import { redactSecrets } from './settings.js';
+import { providerOf, modelFor, chatJson } from './openrouter.js';
 
 export const VISION_MODEL = 'claude-haiku-5-5'; // зашита, отдельно от модели текстов
 export const ACTIONS = ['ест', 'прыжок', 'умывается', 'спит', 'играет', 'лазает', 'прячется', 'смотрит в камеру'];
-export const PRICE = { in: 0.10, out: 0.50 }; // $ за 1 млн токенов, Haiku 5.5 (из PLAN)
+export const PRICE = { in: 0.10, out: 0.50 }; // $ за 1 млн токенов, Haiku 5.5 (из PLAN); цены OpenRouter — в core/openrouter.js
 export const CELL = { w: 384, h: 216 };       // 3×3 → 1152×648
 const MOODS = ['спокойный', 'игривый', 'любопытный', 'сонный', 'насторожен'];
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -115,7 +116,11 @@ export function costOf(usage = {}) {
  * Разборщик. analyze({clip, image}) → vision для library.setVision.
  * image — Buffer JPEG листа (или путь), frames — какие планы на листе (из makeSheet).
  */
-export function createVision({ apiKey = '', client = null, model = VISION_MODEL, dailyCapUsd = 0.25, cachePath = null, now = () => Date.now(), petNames = [] } = {}) {
+export function createVision({ apiKey = '', client = null, model, dailyCapUsd = 0.25, cachePath = null, now = () => Date.now(), petNames = [], fetchImpl = fetch } = {}) {
+  // Ключ OpenRouter — модель из настроек (по умолчанию Haiku через OpenRouter); ключ Claude — Haiku через SDK, как раньше.
+  const viaOr = providerOf(apiKey) === 'openrouter';
+  model = viaOr ? modelFor(apiKey, model) : (model ?? VISION_MODEL);
+  const who = viaOr ? 'OpenRouter' : 'Claude';
   let sdk = client;
   let cache = { spend: {}, clips: {} };
   if (cachePath && existsSync(cachePath)) { try { cache = { spend: {}, clips: {}, ...JSON.parse(readFileSync(cachePath, 'utf8')) }; } catch { /* битый кэш — начинаем заново */ } }
@@ -143,9 +148,25 @@ export function createVision({ apiKey = '', client = null, model = VISION_MODEL,
       if (cache.clips[clip.id]) return { ...cache.clips[clip.id], fromCache: true };
       if (!apiKey && !client) return signalVision(clip);
       if (!image || !frames?.length) return signalVision(clip, 'нет кадров для разбора');
-      if (spentToday() >= dailyCapUsd) return signalVision(clip, `дневной потолок $${dailyCapUsd} — без Claude до завтра`);
+      if (spentToday() >= dailyCapUsd) return signalVision(clip, `дневной потолок $${dailyCapUsd} — без ${who} до завтра`);
       try {
         const data = (Buffer.isBuffer(image) ? image : readFileSync(image)).toString('base64');
+        if (viaOr) {
+          let r;
+          try {
+            r = await chatJson({ apiKey, model, schema: SCHEMA, name: 'vision_labels', maxTokens: 1024, fetchImpl, content: [
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${data}` } },
+              { type: 'text', text: PROMPT },
+            ] });
+          } catch (e) {
+            return signalVision(clip, `OpenRouter недоступен (${redactSecrets(e?.message ?? e, { claudeKey: apiKey }).slice(0, 160)})`);
+          }
+          cache.spend[today()] = r6(spentToday() + r.cost);
+          const v = { ...toVision(r.json, frames, { cost: r.cost, petNames }), provider: 'openrouter', model };
+          cache.clips[clip.id] = v;
+          save();
+          return v;
+        }
         const c = await getClient();
         const res = await c.messages.create({
           model,

@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { OR_PRICES, providerOf, modelFor } from './openrouter.js';
 
 export const DEFAULTS = {
   claudeKey: '',
@@ -27,7 +28,7 @@ export function migrateSettings(saved = {}) {
   for (const [from, to] of Object.entries(RENAMED)) {
     if (from in out) { if (!out[to] && typeof out[from] === 'string') out[to] = out[from]; delete out[from]; }
   }
-  if (typeof out.model !== 'string' || !out.model.startsWith('claude-') || OLD_MODEL.test(out.model)) out.model = DEFAULTS.model;
+  if (typeof out.model !== 'string' || (!OR_PRICES[out.model] && (!out.model.startsWith('claude-') || OLD_MODEL.test(out.model)))) out.model = DEFAULTS.model;
   if (!out.schema || out.schema < 2) out.wizardDone = false; // в мастере новый шаг: ключ Claude сейчас или позже
   out.schema = SCHEMA;
   return out;
@@ -180,6 +181,8 @@ const mask = (v) => (v ? `•••${String(v).slice(-4)}` : '');
 export function maskSettings(s) {
   const out = structuredClone(s);
   out.claudeKey = mask(s.claudeKey);
+  out.provider = providerOf(s.claudeKey);       // 'anthropic' | 'openrouter' | ''
+  out.aiModel = modelFor(s.claudeKey, s.model); // какой моделью пойдут тексты — по ней окно считает расход
   for (const k of ['youtube', 'tiktok', 'instagram', 'telegram']) {
     for (const f of SECRET_SUB) if (out[k]?.[f]) out[k][f] = mask(out[k][f]);
   }
@@ -196,5 +199,5 @@ export function secretValues(s = {}) {
 export function redactSecrets(text, s = {}) {
   let out = String(text ?? '');
   for (const v of secretValues(s)) out = out.split(v).join('***');
-  return out.replace(/sk-ant-[\w-]+/g, '***').replace(/(Bearer\s+)[\w.\-~+/]+=*/gi, '$1***');
+  return out.replace(/sk-(?:ant|or)-[\w-]+/g, '***').replace(/(Bearer\s+)[\w.\-~+/]+=*/gi, '$1***');
 }

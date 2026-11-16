@@ -45,11 +45,12 @@
         <button id="wzFinish">Готово, к работе</button>
       </div>
       <div class="card" id="wzKey" hidden>
-        <h3>Ключ Claude: ввести сейчас или позже?</h3>
-        <p>Claude пишет к каждому ролику заголовок, описание и теги. С ключом приложение само отправляет Claude короткое описание каждого ролика (длина, сюжет, подписи — без видео и личных данных) и ставит его тексты; вызовы оплачиваются с этого ключа. Не ответил Claude — тексты по шаблону, и у ролика будет пометка. Без ключа всё остальное работает так же — монтаж, обложки, календарь, — а тексты будут по шаблону: их стоит поправить руками перед выкладкой.</p>
+        <h3>Ключ ИИ: ввести сейчас или позже?</h3>
+        <p class="hint">Подойдёт ключ Claude (sk-ant…) или OpenRouter (sk-or…). Модель для ключа OpenRouter выбирается в «Настройках».</p>
+        <p>ИИ пишет к каждому ролику заголовок, описание и теги. С ключом приложение само отправляет ИИ короткое описание каждого ролика (длина, сюжет, подписи — без видео и личных данных) и ставит его тексты; вызовы оплачиваются с этого ключа. Не ответил ИИ — тексты по шаблону, и у ролика будет пометка. Без ключа всё остальное работает так же — монтаж, обложки, календарь, — а тексты будут по шаблону: их стоит поправить руками перед выкладкой.</p>
         <p class="hint" id="wzKeyCost"></p>
-        <p class="hint">Ключ вводит только владелец (монтажёр): он платит за него в console.anthropic.com. Ключ хранится только на этом компьютере, напарнице и наружу не уходит. Поменять или удалить — в «Настройках».</p>
-        <div class="row"><input id="wzKeyIn" type="password" autocomplete="off" placeholder="вставьте ключ (sk-ant-…)"><button class="primary" id="wzKeySave">Сохранить ключ</button></div>
+        <p class="hint">Ключ вводит только владелец (монтажёр): он платит за него на сайте, где взял ключ: console.anthropic.com (Claude) или openrouter.ai (OpenRouter). Ключ хранится только на этом компьютере, напарнице и наружу не уходит. Поменять или удалить — в «Настройках».</p>
+        <div class="row"><input id="wzKeyIn" type="password" autocomplete="off" placeholder="вставьте ключ (sk-ant-… или sk-or-…)"><button class="primary" id="wzKeySave">Сохранить ключ</button></div>
         <p id="wzKeyMsg"></p>
         <div class="row"><button id="wzKeyLater">Позже — пока черновые тексты</button></div>
       </div>
@@ -119,9 +120,16 @@
       </fieldset>
       <form id="form" class="ownerOnly">
         <fieldset>
-          <legend>Разбор видео и тексты (Claude)</legend>
-          <label>Ключ Claude API <input name="claudeKey" type="password" autocomplete="off" placeholder="вставьте ключ"></label>
-          <p class="hint">Где взять: на сайте console.anthropic.com раздел «API Keys» (ключи) → кнопка «Create Key» (создать ключ), скопировать ключ и вставить сюда. Без ключа всё работает, тексты черновые. С ключом приложение тратит на разбор не больше 25 центов в день (оплата картой на сайте Anthropic), дальше ждёт следующего дня.</p>
+          <legend>Разбор видео и тексты (ИИ)</legend>
+          <label>Ключ ИИ <input name="claudeKey" type="password" autocomplete="off" placeholder="вставьте ключ (sk-ant-… или sk-or-…)"></label>
+          <p class="hint">Подойдёт ключ Claude (sk-ant…) или OpenRouter (sk-or…).</p>
+          <label>Модель <select name="model">
+            <option value="claude-opus-5-5">Claude Opus 5.5 — для ключа Claude</option>
+            <option value="anthropic/claude-haiku-5.5">Claude Haiku 5.5 через OpenRouter — по умолчанию</option>
+            <option value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite через OpenRouter — самая дешёвая</option>
+          </select></label>
+          <p class="hint">С ключом OpenRouter тексты и разбор кадров идут выбранной моделью; если выбрана модель Claude, берётся Haiku через OpenRouter. С ключом Claude разбор кадров — Haiku, тексты — Opus.</p>
+          <p class="hint">Где взять: ключ Claude — на сайте console.anthropic.com раздел «API Keys» (ключи) → кнопка «Create Key» (создать ключ); ключ OpenRouter — на сайте openrouter.ai/keys → «Create Key». Скопировать ключ и вставить сюда. Без ключа всё работает, тексты черновые. С ключом приложение тратит на разбор не больше 25 центов в день (оплата на сайте, где взят ключ), дальше ждёт следующего дня.</p>
         </fieldset>
         <fieldset>
           <legend>YouTube</legend>
