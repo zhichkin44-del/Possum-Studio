@@ -41,13 +41,14 @@ export function writePost(dir, m) {
 }
 
 /** пост.txt — только тексты площадок, его можно копировать целиком. */
+const block = (p) => [
+  '— YouTube Shorts —', p.youtube.title, p.youtube.description, `Теги: ${p.youtube.tags.join(', ')}`,
+  '', '— TikTok —', p.tiktok.caption,
+  '', '— Instagram Reels —', p.instagram.caption,
+];
 export function postText(m) {
-  const p = m.packages;
-  return [
-    '— YouTube Shorts —', p.youtube.title, p.youtube.description, `Теги: ${p.youtube.tags.join(', ')}`,
-    '', '— TikTok —', p.tiktok.caption,
-    '', '— Instagram Reels —', p.instagram.caption,
-  ].join('\n');
+  if (!m.packagesEn) return block(m.packages).join('\n');
+  return ['=== Канал RU ===', ...block(m.packages), '', '=== Канал EN ===', ...block(m.packagesEn)].join('\n');
 }
 
 /**
@@ -72,6 +73,7 @@ export async function processVideo({ src, outRoot, settings = {}, media, ai, ass
   const petNames = settings.petNames ?? [];
   const allowName = Boolean(settings.allowName);
   const packages = buildPackages(texts, { petNames, allowName, speciesName });
+  const packagesEn = buildPackages(texts, { petNames, allowName, speciesName, lang: 'en' });
   const capRu = allowName ? texts.titleRu : stripNames(texts.titleRu, petNames);
   const capEn = allowName ? texts.titleEn : stripNames(texts.titleEn, petNames);
 
@@ -97,7 +99,7 @@ export async function processVideo({ src, outRoot, settings = {}, media, ai, ass
   const manifest = {
     src, dir, createdAt: new Date().toISOString(),
     analysis: { duration: analysis.duration, peaks: analysis.peaks, best: analysis.best, dark: analysis.dark, flash: analysis.flash },
-    advice, welfare, texts, packages, outputs, cover, music: { file: music, own: own.includes(music) },
+    advice, welfare, texts, packages, packagesEn, channels: ['ru', 'en'], outputs, cover, music: { file: music, own: own.includes(music) },
     plans,
   };
   writeFileSync(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');

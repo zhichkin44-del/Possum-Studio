@@ -147,7 +147,7 @@ test('ai: без ключа — шаблоны и честная метка', as
   assert.equal(r.source, 'шаблон');
   assert.ok(r.titleRu && r.titleEn);
   assert.ok(Array.isArray(r.tags) && r.tags.length);
-  assert.deepEqual(Object.keys(templateTexts({})).sort(), ['descRu', 'tags', 'titleEn', 'titleRu']);
+  assert.deepEqual(Object.keys(templateTexts({})).sort(), ['descEn', 'descRu', 'tags', 'tagsEn', 'titleEn', 'titleRu']);
 });
 
 test('ai: ответ Claude разобран, ошибка — откат на шаблон без утечки ключа', async () => {

@@ -110,7 +110,7 @@ test('тексты, sk-or: POST на OpenRouter, Bearer, JSON-схема, requir
   assert.equal(body.model, 'anthropic/claude-haiku-5.5');
   assert.equal(body.response_format.type, 'json_schema');
   assert.equal(body.response_format.json_schema.strict, true);
-  assert.deepEqual(body.response_format.json_schema.schema.required, ['titleRu', 'titleEn', 'descRu', 'tags']);
+  assert.deepEqual(body.response_format.json_schema.schema.required, ['titleRu', 'titleEn', 'descRu', 'tags', 'descEn', 'tagsEn']);
   assert.equal(body.provider.require_parameters, true);
   assert.equal(body.messages[0].role, 'user');
   assert.equal(r.source, 'claude', 'признак «писал ИИ» прежний — от него зависят библиотека и окно');

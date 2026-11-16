@@ -9,21 +9,31 @@ const SCHEMA = {
     titleEn: { type: 'string' },
     descRu: { type: 'string' },
     tags: { type: 'array', items: { type: 'string' } },
+    descEn: { type: 'string' },
+    tagsEn: { type: 'array', items: { type: 'string' } },
   },
-  required: ['titleRu', 'titleEn', 'descRu', 'tags'],
+  required: ['titleRu', 'titleEn', 'descRu', 'tags', 'descEn', 'tagsEn'],
   additionalProperties: false,
 };
 
 const TEMPLATES = {
-  move: { titleRu: 'Прыжок, которого никто не ждал', titleEn: 'Nobody expected this jump', descRu: 'Маленький зверёк показывает, кто тут главный акробат.' },
-  squeak: { titleRu: 'Он что-то сказал. Переведите', titleEn: 'He said something. Translate?', descRu: 'Зверёк возмущён и не скрывает этого.' },
-  none: { titleRu: 'Зверёк занят важными делами', titleEn: 'A little animal on a very important mission', descRu: 'Маленький ночной зверёк и его большие планы.' },
+  move: { titleRu: 'Прыжок, которого никто не ждал', titleEn: 'Nobody expected this jump', descRu: 'Маленький зверёк показывает, кто тут главный акробат.', descEn: "A tiny acrobat shows who's boss." },
+  squeak: { titleRu: 'Он что-то сказал. Переведите', titleEn: 'He said something. Translate?', descRu: 'Зверёк возмущён и не скрывает этого.', descEn: 'Clearly upset and not hiding it.' },
+  none: { titleRu: 'Зверёк занят важными делами', titleEn: 'A little animal on a very important mission', descRu: 'Маленький ночной зверёк и его большие планы.', descEn: 'A little night animal with big plans.' },
 };
 
 export function templateTexts(facts = {}) {
   const kinds = (facts.peaks ?? []).map((p) => p.kind);
   const t = kinds.includes('squeak') ? TEMPLATES.squeak : kinds.includes('move') ? TEMPLATES.move : TEMPLATES.none;
-  return { ...t, tags: ['питомцы', 'зверёк', 'милыеживотные'] };
+  return { ...t, tags: ['питомцы', 'зверёк', 'милыеживотные'], tagsEn: ['pets', 'cuteanimals', 'cutepets'] };
+}
+
+// Ответ ИИ → тексты: английский канал без своих полей берёт английский шаблон (старые ответы, неполная схема).
+function fromAnswer(j, facts) {
+  const tpl = templateTexts(facts);
+  const descEn = typeof j.descEn === 'string' && j.descEn.trim() ? j.descEn.trim() : tpl.descEn;
+  const tagsEn = Array.isArray(j.tagsEn) && j.tagsEn.length ? j.tagsEn.map(String).slice(0, 8) : tpl.tagsEn;
+  return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), descEn, tagsEn };
 }
 
 function prompt(facts) {
@@ -34,7 +44,7 @@ function prompt(facts) {
     сюжет: facts.story, черновик: facts.draft, подписи: facts.captions?.length ? facts.captions : undefined,
   };
   return [
-    `Ты помогаешь вести канал про домашнего зверька (Shorts, TikTok, Reels). Придумай цепкий заголовок по-русски, перевод на английский, короткое описание (1–2 предложения) и до 8 тегов без «#».`,
+    `Ты помогаешь вести канал про домашнего зверька (Shorts, TikTok, Reels). Придумай цепкий заголовок по-русски, перевод на английский, короткое описание (1–2 предложения) и до 8 тегов без «#». Отдельно — для англоязычного канала: описание на английском (descEn, своё для англоязычной аудитории, не дословный перевод) и до 8 английских тегов (tagsEn).`,
     facts.species ? `Вид зверька подтвердил владелец: ${facts.species}.` : 'Вид зверька не подтверждён: не называй вид, пиши «зверёк».',
     'Правила: не называй кличку питомца и никаких политиков; не обещай просмотры и деньги; не советуй включать свет или снимать со вспышкой; пиши по фактам ниже, без выдумок.',
     `Факты анализа ролика: ${JSON.stringify(f)}`,
@@ -82,7 +92,7 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
     try {
       const { json: j } = await chatJson({ apiKey, model: useModel, content: prompt(facts), schema: SCHEMA, name: 'post_texts', maxTokens: MAX_OUT, fetchImpl });
       if (!valid(j)) return fallback(facts, 'ответ OpenRouter неполный — тексты по шаблону');
-      return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), source: 'claude', provider: 'openrouter', model: useModel };
+      return { ...fromAnswer(j, facts), source: 'claude', provider: 'openrouter', model: useModel };
     } catch (e) {
       return fallback(facts, `OpenRouter недоступен (${clean(e, 200)}) — тексты по шаблону`);
     }
@@ -122,7 +132,7 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
         const text = (res.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('');
         const j = JSON.parse(text);
         if (!valid(j)) return fallback(facts, 'ответ Claude неполный — тексты по шаблону');
-        return { titleRu: j.titleRu, titleEn: j.titleEn, descRu: j.descRu, tags: j.tags.slice(0, 8), source: 'claude', provider: 'anthropic', model: useModel };
+        return { ...fromAnswer(j, facts), source: 'claude', provider: 'anthropic', model: useModel };
       } catch (e) {
         return fallback(facts, `Claude недоступен (${clean(e, 200)}) — тексты по шаблону`);
       }

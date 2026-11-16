@@ -59,7 +59,18 @@ const DESC = {
   asmr: ['Тихо, без музыки — только звук.', 'Без музыки: слышно, как зверёк ест.', 'Наденьте наушники — только живой звук.'],
   series: ['Эпизод из жизни нашего зверька.', 'Чем занят зверёк — смотрите.', 'Ещё один эпизод — пишите, что ждёте дальше.', 'Новая серия: зверёк за своими делами.'],
 };
-const pickDesc = (story) => { const d = DESC[story.kind]; return Array.isArray(d) ? d[(story.variant ?? 0) % d.length] : (d ?? ''); };
+// Английский канал: свои тексты для англоязычной аудитории, не перевод русских.
+const TAGS_EN = { top5: ['top5', 'cute'], day: ['dayinthelife'], beforeAfter: ['beforeandafter'], calm: ['calm'], asmr: ['asmr'], series: ['series'] };
+const DESC_EN = {
+  top5: ['Five best moments. Which one is your favorite? Tell us in the comments.', 'Five moments from our little one\'s life. Which one wins?', 'The best moments in one clip. Which is the cutest?'],
+  day: ['Sleeps all day, wakes up at dusk.', 'A full day in the life of a tiny night animal.', 'Naps by day, busy by night.'],
+  beforeAfter: ['Quiet at first, then straight to business.', 'All calm, and then it got busy.', 'Silence first, then action.'],
+  calm: ['Calm moments of a busy little life.', 'No rush. Just watch how our little friend lives.', 'Quiet minutes of a tiny night animal.'],
+  asmr: ['No music, just the real sound.', 'No music: listen to the munching.', 'Headphones on. Only live sound.'],
+  series: ['An episode from our little friend\'s life.', 'Watch what our little friend is up to.', 'Another episode. Tell us what you want to see next.', 'New episode: busy with important things.'],
+};
+const pickFrom = (d, story) => (Array.isArray(d) ? d[(story.variant ?? 0) % d.length] : (d ?? ''));
+const pickDesc = (story) => pickFrom(DESC[story.kind], story);
 const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const low1 = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 /** Вид подтверждён владельцем — шаблонный заголовок его называет: «Сахарный поссум: пять моментов…». */
@@ -69,7 +80,11 @@ export function withSpecies(title, sp) {
 }
 export function storyTexts(story, title, sp = null) {
   const d = pickDesc(story);
-  return { titleRu: title.ru, titleEn: title.en, descRu: sp?.ru ? `${cap1(sp.ru)}. ${d}` : d, tags: TAGS[story.kind] ?? [] };
+  const e = pickFrom(DESC_EN[story.kind], story);
+  return {
+    titleRu: title.ru, titleEn: title.en, descRu: sp?.ru ? `${cap1(sp.ru)}. ${d}` : d, tags: TAGS[story.kind] ?? [],
+    descEn: sp?.en ? `${cap1(sp.en)}. ${e}` : e, tagsEn: [...(TAGS_EN[story.kind] ?? []), 'pets', 'cuteanimals'],
+  };
 }
 
 /** Свободное место на диске (байт) или null, если не узнать. */
@@ -96,6 +111,7 @@ export function applyPick(dir, pick) {
   if (!['A', 'B'].includes(pick) || !m.packagesA) return m;
   m.pick = pick;
   m.packages = pick === 'B' ? m.packagesB : m.packagesA;
+  if (m.packagesEnA) m.packagesEn = pick === 'B' ? m.packagesEnB : m.packagesEnA;
   writeFileSync(`${file}.tmp`, JSON.stringify(m, null, 2), 'utf8');
   renameSync(`${file}.tmp`, file);
   writePost(dir, m);
@@ -289,7 +305,7 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
       });
     } catch (e) { return { source: 'шаблон', reason: `Claude недоступен (${String(e?.message ?? e).slice(0, 120)}) — тексты по шаблону` }; }
     if (r?.source !== 'claude') return { source: 'шаблон', reason: r?.fallbackReason ?? 'Claude не ответил — тексты по шаблону' };
-    if (BANNED.test([r.titleRu, r.titleEn, r.descRu, ...(r.tags ?? [])].join(' '))) return { source: 'шаблон', reason: 'текст Claude не подошёл (свет, вспышка или повтор) — тексты по шаблону' };
+    if (BANNED.test([r.titleRu, r.titleEn, r.descRu, r.descEn, ...(r.tags ?? []), ...(r.tagsEn ?? [])].join(' ')) || /\bflash|turn (on )?the lights?/i.test(r.descEn ?? '')) return { source: 'шаблон', reason: 'текст Claude не подошёл (свет, вспышка или повтор) — тексты по шаблону' };
     return r;
   }
 
@@ -310,13 +326,19 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
     // Ключ Claude есть — тексты A пишет Claude; источник ставится по факту ответа, B остаётся шаблоном.
     const t = await claudeTexts(story, story.title, night);
     if (t.source === 'claude') titles.A = { ru: t.titleRu, en: t.titleEn };
-    const packagesA = buildPackages(t.source === 'claude' ? t : storyTexts(story, titles.A, speciesName), { petNames, speciesName });
-    const packagesB = buildPackages(storyTexts(story, titles.B, speciesName), { petNames, speciesName });
+    const textsA = t.source === 'claude' ? t : storyTexts(story, titles.A, speciesName);
+    const textsB = storyTexts(story, titles.B, speciesName);
+    const packagesA = buildPackages(textsA, { petNames, speciesName });
+    const packagesB = buildPackages(textsB, { petNames, speciesName });
+    // второй канал — английский: та же картинка, тексты для англоязычной аудитории
+    const packagesEnA = buildPackages(textsA, { petNames, speciesName, lang: 'en' });
+    const packagesEnB = buildPackages(textsB, { petNames, speciesName, lang: 'en' });
     const manifest = {
       kind: 'story', id: story.id, storyKind: story.kind, story,
       createdAt: new Date(now()).toISOString(),
       outputs: { youtube: video, tiktok: video, reels: video },
       cover, titles, pick: 'A', packages: packagesA, packagesA, packagesB,
+      channels: ['ru', 'en'], packagesEn: packagesEnA, packagesEnA, packagesEnB,
       advice: { verdict: story.needsReview ? 'посмотрите перед выкладкой' : 'можно выкладывать', why: story.why || 'собрано из моментов, где зверька хорошо видно и он спокоен' },
       welfare: welfareNotes({ dark: night, always: true, kind: story.kind }),
       texts: t.source === 'claude' ? { source: 'claude' } : { source: 'шаблон', reason: t.reason },

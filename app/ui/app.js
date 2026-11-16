@@ -355,6 +355,12 @@ async function openSlot(id) {
   const body = $('#clipBody');
   if (!manifest) { body.innerHTML = '<p class="error">Файлы монтажа не найдены. Закиньте видео ещё раз.</p>'; go('clip'); return; }
   const p = manifest.packages ?? {};
+  // второй канал — английский; старые ролики его не знают, тогда блок как раньше
+  const pe = manifest.packagesEn ?? (manifest.packagesEnA ? ((slot.pick ?? manifest.pick) === 'B' ? manifest.packagesEnB : manifest.packagesEnA) : null);
+  const captions = (q, head) => `${head ? `<h3>${esc(head)}</h3>` : ''}
+      <h3>YouTube</h3><pre>${esc(q.youtube?.title)}\n\n${esc(q.youtube?.description)}</pre>
+      <h3>TikTok</h3><pre>${esc(q.tiktok?.caption)}</pre>
+      <h3>Instagram</h3><pre>${esc(q.instagram?.caption)}</pre>`;
   const pick = slot.pick ?? manifest.pick ?? 'A';
   // значок площадки: подключено ли (YouTube и TikTok — вход в Настройках; Instagram — всегда вручную)
   const ready = (plat) => plat === 'instagram' || Boolean(status[plat]);
@@ -380,9 +386,7 @@ async function openSlot(id) {
       </div>
     </div>
     <details class="card"><summary>Подписи к площадкам…</summary>
-      <h3>YouTube</h3><pre>${esc(p.youtube?.title)}\n\n${esc(p.youtube?.description)}</pre>
-      <h3>TikTok</h3><pre>${esc(p.tiktok?.caption)}</pre>
-      <h3>Instagram</h3><pre>${esc(p.instagram?.caption)}</pre>
+      ${captions(p, pe ? 'Канал RU' : '')}${pe ? captions(pe, 'Канал EN (англоязычная аудитория)') : ''}
     </details>
     ${manifest.music?.file ? '<p class="hint">Музыка подобрана из вашей папки.</p>' : ''}`;
   // пункт списка моментов перематывает ролик на этот момент
