@@ -1,6 +1,6 @@
 {
   "name": "possum-studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Сахарный поссум: бот владельца и приложение напарницы — монтаж, совет, выкладка по кнопке",
