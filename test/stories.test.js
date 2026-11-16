@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { KINDS, TITLES, TITLE_VARIANTS, pieceAround, partOfDay, gateReason, kindOrder, makeStories, commit, whyNotKinds, KIND_RU, tiredClips } from '../core/stories.js';
-import { buildStoryArgs, storyInputs } from '../core/story-render.js';
+import { buildStoryArgs, storyInputs, STYLES, planStyle, seedOf } from '../core/story-render.js';
 
 const DAY = 24 * 3600 * 1000;
 const NOW = new Date(2026, 10, 15, 12, 0, 0).getTime();
@@ -272,6 +272,72 @@ test('монтаж: подписи каждого куска — только н
   assert.match(f, /textfile=c0\.txt.*enable='between\(t,0\.000,2\.980\)'/);
   assert.match(f, /textfile=c1a\.txt.*y=h\*0\.11\+0:enable='between\(t,3\.000,4\.980\)'/);
   assert.match(f, /textfile=c1b\.txt.*y=h\*0\.11\+112:/);
+});
+
+// ── стили монтажа по виду сюжета ─────────────────────────────────────────
+const three = [
+  { src: 'a.mp4', from: 1, len: 3, hasAudio: true, orient: 'vertical' },
+  { src: 'b.mp4', from: 0, len: 2, hasAudio: false, orient: 'horizontal' },
+  { src: 'c.mp4', from: 4, len: 2.5, hasAudio: true, orient: 'vertical' },
+];
+const totalOf = (args) => args[args.indexOf('-t', args.indexOf('-filter_complex')) + 1];
+
+test('стили: у каждого вида сюжета свой стиль, все переходы — настоящие xfade', () => {
+  for (const k of KINDS) assert.ok(STYLES[k], `нет стиля для ${k}`);
+  const XFADE = new Set(['fade', 'fadeblack', 'dissolve', 'wipeleft', 'wiperight', 'slideleft', 'slideup', 'smoothleft', 'smoothright', 'smoothup', 'zoomin']);
+  for (const s of Object.values(STYLES)) for (const t of s.trans) assert.ok(XFADE.has(t), t);
+});
+
+test('стили: переходы xfade/acrossfade, длина ролика = сумма кусков, подписи не сдвинуты', () => {
+  const args = buildStoryArgs({ out: 'o.mp4', pieces: three, style: STYLES.day, captionFiles: [['c0.txt'], [], ['c2.txt']] });
+  const f = fc(args);
+  assert.doesNotMatch(f, /concat=/);
+  assert.match(f, /\[v0\]\[v1\]xfade=transition=\w+:duration=0\.500:offset=3\.000\[vx1\]/);
+  assert.match(f, /\[vx1\]\[v2\]xfade=transition=\w+:duration=0\.500:offset=5\.000\[vc\]/);
+  assert.match(f, /\[ax1\]\[a2\]acrossfade=d=0\.500/);
+  assert.equal(totalOf(args), '7.500');
+  // первые два куска читаются на 0,5 с дольше (хвост под переход), последний — ровно
+  assert.deepEqual(args.slice(1, 7), ['-ss', '1.000', '-t', '3.500', '-i', 'a.mp4']);
+  assert.match(f, /aevalsrc=0:c=stereo:s=48000:d=2\.500\[a1\]/);
+  assert.ok(args.includes('c.mp4') && args[args.indexOf('c.mp4') - 2] === '2.500');
+  assert.match(f, /textfile=c2\.txt.*enable='between\(t,5\.000,7\.480\)'/);
+  assert.match(f, /zoompan=z='1\.07-0\.07\*min|zoompan=z='1\+0\.07\*min/);
+});
+
+test('стили: переход не длиннее трети самого короткого куска', () => {
+  const p = planStyle([{ len: 3 }, { len: 0.9 }], STYLES.calm);
+  assert.equal(p.d, 0.3);
+  assert.equal(planStyle([{ len: 3 }], STYLES.calm).d, 0);
+  assert.equal(planStyle([{ len: 3 }], null), null);
+});
+
+test('стили: топ-5 — резкий наезд, встряска на крючке и №1, №1 замедлен из середины окна', () => {
+  const args = buildStoryArgs({ out: 'o.mp4', pieces: three, style: STYLES.top5 });
+  const f = fc(args);
+  assert.match(f, /if\(lt\(on,6\)/);
+  assert.equal((f.match(/crop=1040:1848/g) ?? []).length, 2, 'встряска только у первого и последнего');
+  // крючок трясётся сразу, №1 — после въезда перехода 0,25 с (8 кадров), а не под ним
+  assert.match(f, /between\(n,0,9\)/);
+  assert.match(f, /between\(n,8,17\)/);
+  assert.match(f, /\[2:v\][^;]*setpts=PTS\/0\.6/);
+  assert.match(f, /\[2:a\][^;]*atempo=0\.6/);
+  // окно №1: 2,5 с × 0,6 = 1,5 с исходника, со сдвигом 0,5 с к середине
+  assert.equal(args[args.indexOf('c.mp4') - 4], '4.500');
+  assert.equal(args[args.indexOf('c.mp4') - 2], '1.500');
+  assert.equal(totalOf(args), '7.500');
+});
+
+test('стили: тихий (ASMR) — мягкие fade, без встряски и замедления', () => {
+  const f = fc(buildStoryArgs({ out: 'o.mp4', quiet: true, pieces: three, style: STYLES.asmr }));
+  assert.match(f, /xfade=transition=fade/);
+  assert.doesNotMatch(f, /crop=1040:1848|setpts=PTS\/|atempo/);
+  assert.match(f, /alimiter/);
+});
+
+test('стили: seed меняет первый переход — два ролика одного вида не одинаковы', () => {
+  const firsts = new Set([0, 1, 2, 3, 4].map((s) => planStyle(three, STYLES.top5, s).trans[0]));
+  assert.ok(firsts.size >= 3);
+  assert.notEqual(seedOf('top5-a'), seedOf('top5-b'));
 });
 
 test('монтаж: пустой сюжет — понятная ошибка; пропавший файл — тоже', () => {
