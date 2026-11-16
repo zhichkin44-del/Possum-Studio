@@ -71,6 +71,10 @@
         "filter": [
           "**/*.onnx"
         ]
+      },
+      {
+        "from": "assets",
+        "to": "assets"
       }
     ]
   }

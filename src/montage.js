@@ -2,8 +2,21 @@
 // Общее с Видеостудией (<project-dir>): тот же ffmpeg, формат 1080×1920 и громкость −14 LUFS. Кода Видеостудии здесь нет.
 // produce.py и proof_sheet.py привязаны к «эпизоду» (озвучка, кадры от ИИ, оверлеи Hyperframes) и к съёмке с телефона не подходят.
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { findFont as findBundledFont } from '../core/assets.js';
+import { ENCODE, gradeChain } from '../core/render.js';
+
+/**
+ * Картинка одного куска бота: вертикальное — на весь кадр; горизонтальное — квадрат по центру крупно на размытом фоне
+ * (зверёк не мелкий). Обработка как в приложении: шумодав на тёмном, живость, контраст, резкость.
+ */
+export function segVideoFilter(s, i) {
+  const grade = gradeChain({ luma: s.luma });
+  return s.width / s.height < 0.7
+    ? `[${i}:v]fps=30,setsar=1,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${grade},setsar=1,format=yuv420p[v${i}]`
+    : `[${i}:v]fps=30,setsar=1,split=2[bg${i}][fgv${i}];[bg${i}]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2[bgb${i}];[fgv${i}]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080[fgs${i}];[bgb${i}][fgs${i}]overlay=(W-w)/2:(H-h)/2,${grade},setsar=1,format=yuv420p[v${i}]`;
+}
 
 const TARGET_SECONDS = 18; // в пределах 8–20 с паспорта
 const FPS_SCAN = 4;
@@ -18,13 +31,8 @@ function findFfprobe(ffmpeg, env = process.env) {
   const sibling = ffmpeg && /ffmpeg(\.exe)?$/i.test(ffmpeg) ? ffmpeg.replace(/ffmpeg(\.exe)?$/i, (m) => m.replace('ffmpeg', 'ffprobe')) : null;
   return (env.FFPROBE && tryBin(env.FFPROBE)) || (sibling && tryBin(sibling)) || tryBin('ffprobe');
 }
-export function findFont(env = process.env) {
-  const local = env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'nezabytoe_build', 'ttf', 'Nunito.ttf') : null;
-  for (const p of [env.POSSUM_FONT, 'C:/Windows/Fonts/arialbd.ttf', local, '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf']) {
-    if (p && existsSync(p)) return p;
-  }
-  return null;
-}
+/** Шрифт подписей бота — тот же, что у приложения: вшитый Montserrat Black (core/assets.js). */
+export function findFont(env = process.env) { return findBundledFont(env); }
 
 function run(bin, args, { cwd, binary = false, timeoutMs = 600_000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -166,11 +174,7 @@ export function createMontage({ env = process.env } = {}) {
     segs.forEach((s, i) => { if (!s.hasAudio) { silent.push(i); args.push('-f', 'lavfi', '-t', s.len.toFixed(2), '-i', 'anullsrc=r=48000:cl=stereo'); } });
     const fg = [];
     segs.forEach((s, i) => {
-      const vertical = s.width / s.height < 0.7;
-      // вертикальное — на весь кадр; горизонтальное — квадрат по центру крупно на размытом фоне (зверёк не мелкий)
-      fg.push(vertical
-        ? `[${i}:v]fps=30,setsar=1,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p[v${i}]`
-        : `[${i}:v]fps=30,setsar=1,split=2[bg${i}][fgv${i}];[bg${i}]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2[bgb${i}];[fgv${i}]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080[fgs${i}];[bgb${i}][fgs${i}]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[v${i}]`);
+      fg.push(segVideoFilter(s, i));
       const asrc = s.hasAudio ? `${i}:a` : `${segs.length + silent.indexOf(i)}:a`;
       fg.push(`[${asrc}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB[a${i}]`);
     });
@@ -186,7 +190,7 @@ export function createMontage({ env = process.env } = {}) {
     } else fg.push('[vc]null[vout]');
     fg.push(`[ac]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,afade=t=out:st=${Math.max(0, outLen - 0.3).toFixed(2)}:d=0.3[aout]`);
     args.push('-filter_complex', fg.join(';'), '-map', '[vout]', '-map', '[aout]', '-t', outLen.toFixed(2),
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-r', '30', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'final_1080p_vertical.mp4');
+      ...ENCODE, '-r', '30', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', 'final_1080p_vertical.mp4');
     const r = await run(ffmpeg, args, { cwd: work });
     if (r.code !== 0) throw new Error(`ffmpeg: ${r.stderr.slice(-1800)}`);
 

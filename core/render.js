@@ -4,6 +4,23 @@ import { join } from 'node:path';
 
 const f3 = (x) => Number(x).toFixed(3);
 
+/** Сжатие готового ролика: medium + CRF 18. Площадки пережимают ещё раз, нужен запас качества (veryfast/20 давал кубики на шерсти). Замер 16.11, 20 с 1080×1920: slow 34 с / 113 МБ, medium 18 с / 112 МБ — тот же размер вдвое быстрее. */
+export const ENCODE = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p'];
+
+/** Яркость куска (0–255), ниже которой в кадре шум телефона: его убирает hqdn3d. */
+export const NOISY_LUMA = 90;
+
+/**
+ * Обработка картинки куска: шумодав для тёмного кадра, живость цвета без кислотности (vibrance бережёт уже насыщенное),
+ * лёгкий контраст и резкость CAS. soft — для спокойных и тихих роликов: всё мягче.
+ */
+export function gradeChain(p = {}, soft = false) {
+  const denoise = typeof p.luma === 'number' && p.luma < NOISY_LUMA ? 'hqdn3d=1.5:1.5:6:6,' : '';
+  return denoise + (soft
+    ? 'vibrance=intensity=0.08,eq=contrast=1.02:saturation=1.04,cas=strength=0.25'
+    : 'vibrance=intensity=0.15,eq=contrast=1.05:saturation=1.08,cas=strength=0.4');
+}
+
 /** Переносит строку по словам, чтобы подпись не вылезала за кадр. */
 export function wrapLines(text, max = 20) {
   const lines = []; let cur = '';
@@ -14,13 +31,14 @@ export function wrapLines(text, max = 20) {
   return lines.slice(0, 3);
 }
 
-export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, captionFiles = { ru: [], en: [] } }) {
+/** luma — средняя яркость исходника: на плане у кусков своей яркости нет, без неё шумодав не включается. */
+export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, captionFiles = { ru: [], en: [] }, luma }) {
   const inputs = ['-i', src];
   let idx = 1;
   const parts = [];
   const n = plan.segments.length;
   plan.segments.forEach((s, i) => {
-    parts.push(`[0:v]trim=start=${f3(s.from)}:duration=${f3(s.len)},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,setsar=1[v${i}]`);
+    parts.push(`[0:v]trim=start=${f3(s.from)}:duration=${f3(s.len)},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${gradeChain({ luma: s.luma ?? luma })},fps=30,setsar=1[v${i}]`);
     parts.push(hasAudio
       ? `[0:a]atrim=start=${f3(s.from)}:duration=${f3(s.len)},asetpts=PTS-STARTPTS,aformat=sample_rates=48000:channel_layouts=stereo[a${i}]`
       : `aevalsrc=0:c=stereo:s=48000:d=${f3(s.len)}[a${i}]`);
@@ -67,7 +85,7 @@ export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, capti
     '-y', ...inputs,
     '-filter_complex', parts.join(';'),
     '-map', '[vout]', '-map', '[aout]',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    ...ENCODE,
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
     '-t', f3(plan.total), '-movflags', '+faststart', out,
   ];
@@ -87,7 +105,7 @@ export async function renderPlan({ src, plan, info, sfxFiles, out, workDir, font
       });
     }
   }
-  const args = buildRenderArgs({ src, plan, hasAudio: info.hasAudio, sfxFiles, out, captionFiles });
+  const args = buildRenderArgs({ src, plan, hasAudio: info.hasAudio, sfxFiles, out, captionFiles, luma: info.luma });
   await media.ffmpeg(args, { cwd: workDir, timeoutMs: 15 * 60_000 });
   return out;
 }

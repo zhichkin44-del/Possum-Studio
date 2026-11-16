@@ -1,6 +1,7 @@
 // Свои звуки и своя фоновая мелодия — синтезируем ffmpeg'ом, поэтому никаких лицензий и страйков.
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Выражения в одинарных кавычках: так запятые внутри не режут граф фильтров.
 const SFX = {
@@ -44,10 +45,20 @@ export function pickMusic(list, seed = '') {
   return list[h % list.length];
 }
 
-/** Жирный шрифт с кириллицей для подписей: Segoe UI Bold → Arial Bold → DejaVu (Linux). */
+/**
+ * Папка вшитых шрифтов и звуков. В установленном приложении она лежит рядом с app.asar (extraResources):
+ * ffmpeg не умеет читать изнутри asar. При разработке — assets/ в корне репо.
+ */
+export function bundledAssetsDir(exists = existsSync) {
+  const res = typeof process.resourcesPath === 'string' ? join(process.resourcesPath, 'assets') : null;
+  if (res && exists(res)) return res;
+  return join(dirname(fileURLToPath(import.meta.url)), '..', 'assets');
+}
+
+/** Жирный шрифт с кириллицей для подписей: свой (POSSUM_FONT) → вшитый Montserrat Black → Segoe UI Bold → Arial Bold → DejaVu (Linux). */
 export function findFont(env = process.env, exists = existsSync) {
   const win = join(env.WINDIR ?? env.windir ?? 'C:/Windows', 'Fonts');
-  const cands = [env.POSSUM_FONT, join(win, 'segoeuib.ttf'), join(win, 'arialbd.ttf'), join(win, 'arial.ttf'),
+  const cands = [env.POSSUM_FONT, join(bundledAssetsDir(exists), 'fonts', 'Montserrat-Black.ttf'), join(win, 'segoeuib.ttf'), join(win, 'arialbd.ttf'), join(win, 'arial.ttf'),
     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf'].filter(Boolean);
   return cands.find((f) => exists(f)) ?? null;
 }

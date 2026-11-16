@@ -2,7 +2,7 @@
 // Подписи по кускам («№5», «Утро»), кусок без звука — тишина. Тихие/ASMR — без подъёма громкости, только ограничение пиков.
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { wrapLines } from './render.js';
+import { ENCODE, gradeChain, wrapLines } from './render.js';
 
 const f3 = (x) => Number(x).toFixed(3);
 const STYLE = 'fontcolor=white:borderw=9:bordercolor=black@0.9:shadowx=3:shadowy=4:shadowcolor=black@0.6:x=(w-text_w)/2';
@@ -24,8 +24,8 @@ export const STYLES = {
   fails: { name: 'Ой!', trans: ['zoomin', 'slideleft'], dur: 0.2, zoom: 'punch', shake: true },
   day: { name: 'День', trans: ['fade', 'smoothleft', 'dissolve', 'fadeblack'], dur: 0.5, zoom: 'kenburns' },
   beforeAfter: { name: 'Было-стало', trans: ['wiperight'], dur: 0.5, zoom: 'slow' },
-  calm: { name: 'Спокойный', trans: ['fade'], dur: 0.8, zoom: 'slow' },
-  asmr: { name: 'Тихий', trans: ['fade'], dur: 0.6, zoom: 'slow' },
+  calm: { name: 'Спокойный', trans: ['fade'], dur: 0.8, zoom: 'slow', soft: true },
+  asmr: { name: 'Тихий', trans: ['fade'], dur: 0.6, zoom: 'slow', soft: true },
   series: { name: 'Серия', trans: ['smoothleft', 'smoothright'], dur: 0.35, zoom: 'kenburns' },
 };
 
@@ -45,8 +45,9 @@ function zoomExpr(kind, N, dir) {
   return null;
 }
 
-/** Видео куска k: приведение к 9:16 + добивка последним кадром, если исходник кончился раньше; fx — движение камеры, встряска, скорость. */
-function videoChain(k, p, fx = {}) {
+/** Видео куска k: приведение к 9:16 + обработка картинки + добивка последним кадром, если исходник кончился раньше; fx — движение камеры, встряска, скорость. */
+function videoChain(k, p, fx = {}, soft = false) {
+  const grade = gradeChain(p, soft);
   const len = p.len + (fx.extra ?? 0);
   const speed = fx.speed ? `setpts=PTS/${fx.speed},` : '';
   const tail = `${speed}tpad=stop_mode=clone:stop_duration=${f3(len)},trim=duration=${f3(len)},setpts=PTS-STARTPTS,fps=30,setsar=1`;
@@ -57,13 +58,13 @@ function videoChain(k, p, fx = {}) {
     fx.shake ? shakeCrop(fx.shakeAt ?? 0) : null,
     'setsar=1,format=yuv420p',
   ].filter(Boolean).join(',');
-  if (p.orient === 'vertical') return [`[${k}:v]${FIT},${tail},${move}[v${k}]`];
+  if (p.orient === 'vertical') return [`[${k}:v]${FIT},${grade},${tail},${move}[v${k}]`];
   return [
     `[${k}:v]split=2[bg${k}][fg${k}]`,
     `[bg${k}]${BG}[bb${k}]`,
     // кадр 9:8: крупнее полоски 16:9, но без глубокой обрезки 4:5, что срезала зверька у края
     `[fg${k}]${FG}[ff${k}]`,
-    `[bb${k}][ff${k}]overlay=(W-w)/2:(H-h)/2,${tail},${move}[v${k}]`,
+    `[bb${k}][ff${k}]overlay=(W-w)/2:(H-h)/2,${grade},${tail},${move}[v${k}]`,
   ];
 }
 
@@ -111,7 +112,7 @@ export function buildStoryArgs({ pieces, out, quiet = false, captionFiles = [], 
   pieces.forEach((p, k) => {
     const fx = fxOf(k);
     const alen = p.len + (fx.extra ?? 0);
-    parts.push(...videoChain(k, p, fx));
+    parts.push(...videoChain(k, p, fx, Boolean(style?.soft)));
     parts.push(p.hasAudio
       ? `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,${fx.speed ? `atempo=${fx.speed},` : ''}apad,atrim=duration=${f3(alen)},asetpts=PTS-STARTPTS[a${k}]`
       : `aevalsrc=0:c=stereo:s=48000:d=${f3(alen)}[a${k}]`);
@@ -159,7 +160,7 @@ export function buildStoryArgs({ pieces, out, quiet = false, captionFiles = [], 
     '-y', ...inputs,
     '-filter_complex', parts.join(';'),
     '-map', '[vout]', '-map', '[aout]',
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+    ...ENCODE,
     '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
     '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
     '-t', f3(total), '-movflags', '+faststart', out,
@@ -192,7 +193,8 @@ export function storyInputs(story, lib) {
     const clip = lib.get(p.clip);
     const src = clip ? lib.realPath(clip) : null;
     if (!src) throw new Error(`Нет исходника для куска (${clip?.name ?? p.clip}) — файл перемещён или удалён`);
-    return { src, from: p.from, len: p.len, hasAudio: clip.hasAudio, orient: clip.orient, caption: p.caption, ...(p.hold ? { hold: true } : {}) };
+    const luma = clip.shots?.[p.shot]?.luma;
+    return { src, from: p.from, len: p.len, hasAudio: clip.hasAudio, orient: clip.orient, caption: p.caption, ...(p.hold ? { hold: true } : {}), ...(typeof luma === 'number' ? { luma } : {}) };
   });
 }
 
