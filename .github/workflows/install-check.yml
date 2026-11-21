@@ -18,9 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install FFmpeg (Linux, as in README)
+      - name: Install FFmpeg 7 (Linux, as in README)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
       - name: Install dependencies (as in README)
         run: npm ci
       - name: Run tests (as in README)
