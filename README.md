@@ -17,6 +17,18 @@ Status: tests are green (see [Tests](#tests)). The first live run with a real Te
 - Desktop app (Windows): inbox, render queue, manual publishing buttons, and encrypted storage of API keys (Windows DPAPI).
 - Optional AI-written texts and frame recognition via your own API key (Anthropic or OpenRouter). Without a key, template texts are used.
 
+## Screenshots
+
+Desktop app with sample data. The interface is in Russian; these screenshots show it translated to English for this README.
+
+**What to film today**: the day's shooting script; ticks appear as matching footage arrives.
+
+![What to film today](docs/screenshots/today.png)
+
+**Ideas and tips**: a catalogue of video ideas with shot lists, plus a mentor for questions.
+
+![Ideas and tips](docs/screenshots/ideas.png)
+
 ## Requirements
 
 - Node.js 20 or newer.
