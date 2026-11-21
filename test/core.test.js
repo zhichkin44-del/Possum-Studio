@@ -1,4 +1,4 @@
-// Ядро приложения и бота владельца: чистые функции (анализ, план монтажа, советы, благополучие, пакеты, настройки, ИИ-запасной путь).
+// Core of the app and the owner's bot: pure functions (analysis, editing plan, tips, welfare, packages, settings, AI fallback path).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
@@ -15,7 +15,7 @@ import { createAi, templateTexts } from '../core/ai.js';
 import { createLog } from '../core/publishedlog.js';
 
 const STEP = 0.25;
-// 16 с: тихо и спокойно, на 9 с — прыжок и писк
+// 16 s: quiet and calm, at 9 s — a jump and a squeak
 function signals({ seconds = 16, peakAt = 9, squeakAt = 9.25, luma = 90, flashAt = null } = {}) {
   const n = Math.round(seconds / STEP);
   const motion = [], loud = [], lum = [];
@@ -28,7 +28,7 @@ function signals({ seconds = 16, peakAt = 9, squeakAt = 9.25, luma = 90, flashAt
   return { step: STEP, motion, loud, luma: lum };
 }
 
-test('deriveMoments: находит прыжок, писк и лучший момент', () => {
+test('deriveMoments: finds a jump, a squeak and the best moment', () => {
   const a = deriveMoments(signals());
   assert.ok(Math.abs(a.duration - 16) < 0.3);
   assert.ok(Math.abs(a.best.t - 9) <= 0.75, `best=${a.best.t}`);
@@ -38,52 +38,52 @@ test('deriveMoments: находит прыжок, писк и лучший мо�
   assert.deepEqual(a.flash, []);
 });
 
-test('deriveMoments: темно и вспышка замечены', () => {
+test('deriveMoments: darkness and flash are detected', () => {
   const dark = deriveMoments(signals({ luma: 18 }));
   assert.equal(dark.dark, true);
   const fl = deriveMoments(signals({ flashAt: 5 }));
-  assert.ok(fl.flash.length >= 1, 'вспышка должна найтись');
+  assert.ok(fl.flash.length >= 1, 'flash must be found');
 });
 
-test('deriveMoments: пустой вход не падает', () => {
+test('deriveMoments: empty input does not crash', () => {
   const a = deriveMoments({ step: STEP, motion: [], loud: [], luma: [] });
   assert.equal(a.duration, 0);
   assert.deepEqual(a.peaks, []);
 });
 
-test('makePlan: хук первым, 1–3 звука, длины по площадкам', () => {
+test('makePlan: hook first, 1–3 sounds, lengths per platform', () => {
   const a = deriveMoments(signals({ seconds: 40, peakAt: 25, squeakAt: 25.25 }));
   for (const name of Object.keys(PROFILES)) {
     const p = makePlan(a, name, { music: 'C:/m/track.mp3', captions: { ru: 'Прыжок!', en: 'Jump!' } });
     const total = p.segments.reduce((s, x) => s + x.len, 0);
     assert.ok(total <= PROFILES[name].maxLen + 0.01, `${name}: ${total}`);
-    // лучший момент — в первые 1,5 с ролика
+    // best moment — in the first 1.5 s of the video
     assert.ok(p.hookAt <= 1.5, `${name}: hookAt=${p.hookAt}`);
     assert.ok(p.sfx.length >= 1 && p.sfx.length <= 3, `${name}: sfx=${p.sfx.length}`);
     for (const s of p.sfx) assert.ok(s.at >= 0 && s.at < total);
     assert.ok(p.zooms.length >= 1);
     assert.equal(p.captions.ru, 'Прыжок!');
   }
-  assert.equal(makePlan(a, 'tiktok', { music: 'C:/m/track.mp3' }).music, null, 'TikTok — без музыки (тренд-звук ставится в приложении)');
+  assert.equal(makePlan(a, 'tiktok', { music: 'C:/m/track.mp3' }).music, null, 'TikTok — no music (trend sound is added in the app)');
   assert.equal(makePlan(a, 'youtube', { music: 'C:/m/track.mp3' }).music.file, 'C:/m/track.mp3');
   assert.ok(PROFILES.youtube.maxLen <= 30 && PROFILES.tiktok.maxLen <= 20 && PROFILES.reels.maxLen <= 15);
 });
 
-test('makePlan: лучший момент в середине длинного клипа — тизер в начале', () => {
+test('makePlan: best moment in the middle of a long clip — teaser at the start', () => {
   const a = deriveMoments(signals({ seconds: 16, peakAt: 12, squeakAt: 12.25 }));
   const p = makePlan(a, 'youtube', {});
   assert.ok(p.segments.length >= 1);
   assert.ok(p.hookAt <= 1.5);
-  // сегменты не выходят за исходник
+  // segments do not go past the source
   for (const s of p.segments) assert.ok(s.from >= 0 && s.from + s.len <= a.duration + 0.01);
 });
 
-test('makePlan: слишком короткое видео — понятная ошибка', () => {
+test('makePlan: too-short video — clear error', () => {
   const a = deriveMoments({ step: STEP, motion: [1, 2], loud: [-40, -40], luma: [90, 90] });
   assert.throws(() => makePlan(a, 'youtube', {}), /коротк/i);
 });
 
-test('advise: критерии видны, вспышка — «не советую»', () => {
+test('advise: criteria are visible, flash — "not recommended"', () => {
   const good = advise(deriveMoments(signals()));
   assert.equal(good.verdict, 'выкладывай');
   assert.equal(good.criteria.движение, true);
@@ -96,7 +96,7 @@ test('advise: критерии видны, вспышка — «не совет�
   assert.equal(flash.verdict, 'не советую');
 });
 
-test('welfareNotes: в темноте не просим свет, про вспышку предупреждаем', () => {
+test('welfareNotes: in the dark we do not ask for light, we warn about flash', () => {
   const dark = welfareNotes(deriveMoments(signals({ luma: 18 }))).join(' ');
   assert.match(dark, /ночн|ИК/i);
   assert.doesNotMatch(dark, /включи(те)? свет/i);
@@ -104,7 +104,7 @@ test('welfareNotes: в темноте не просим свет, про всп�
   assert.match(fl, /вспышк/i);
 });
 
-test('packages: имени питомца нет нигде, #Shorts в YouTube, лимиты длины', () => {
+test('packages: pet name appears nowhere, #Shorts on YouTube, length limits', () => {
   const texts = { titleRu: 'Владимир Пип прыгает за мандарином', titleEn: 'Pip the sugar glider jumps', descRu: 'Пип снова ворует мандарин', tags: ['sugarglider', 'пип', 'поссум'] };
   const p = buildPackages(texts, { petNames: ['Владимир Пип', 'Пип', 'Pip'] });
   const all = JSON.stringify(p);
@@ -114,17 +114,17 @@ test('packages: имени питомца нет нигде, #Shorts в YouTube,
   assert.ok(p.tiktok.caption.length <= 2200);
   assert.ok(p.instagram.caption.length <= 2200);
   assert.ok(p.youtube.tags.length >= 1);
-  assert.doesNotMatch(all, /sugar glider jumps/i, 'английского заголовка в подписях нет');
+  assert.doesNotMatch(all, /sugar glider jumps/i, 'no English title in the captions');
   assert.doesNotMatch(stripNames('Пип и мандарин', ['Пип']), /Пип/);
   assert.match(stripNames('Пип и мандарин', ['Пип']), /^Мандарин$/);
 });
 
-test('packages: владелец может разрешить имя флажком', () => {
+test('packages: owner can allow the name with a checkbox', () => {
   const p = buildPackages({ titleRu: 'Пип прыгает', titleEn: '', descRu: '', tags: [] }, { petNames: ['Пип'], allowName: true });
   assert.match(p.youtube.title, /Пип/);
 });
 
-test('settings: сохраняются, ключи замаскированы, секреты вырезаются из ошибок', () => {
+test('settings: saved, keys masked, secrets stripped from errors', () => {
   setVault(fakeVault());
   const dir = mkdtempSync(join(tmpdir(), 'possum-set-'));
   const path = join(dir, 'settings.json');
@@ -141,7 +141,7 @@ test('settings: сохраняются, ключи замаскированы, �
   assert.match(settingsPath({ APPDATA: '<project-dir>' }), /PossumStudio[\\/]settings\.json$/);
 });
 
-test('ai: без ключа — шаблоны и честная метка', async () => {
+test('ai: without key — templates and an honest label', async () => {
   const ai = createAi({ apiKey: '' });
   const r = await ai.suggest({ advice: { verdict: 'выкладывай' }, peaks: [{ kind: 'squeak' }] });
   assert.equal(r.source, 'шаблон');
@@ -150,7 +150,7 @@ test('ai: без ключа — шаблоны и честная метка', as
   assert.deepEqual(Object.keys(templateTexts({})).sort(), ['descEn', 'descRu', 'tags', 'tagsEn', 'titleEn', 'titleRu']);
 });
 
-test('ai: ответ Claude разобран, ошибка — откат на шаблон без утечки ключа', async () => {
+test('ai: Claude response parsed, error — fallback to template without leaking the key', async () => {
   const calls = [];
   const fake = { beta: { messages: { create: async (req) => { calls.push(req); return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ titleRu: 'Ночной прыжок', titleEn: 'Night jump', descRu: 'Описание', tags: ['sugarglider'] }) }] }; } } } };
   const ai = createAi({ apiKey: 'sk-ant-REDACTED', client: fake });
@@ -168,7 +168,7 @@ test('ai: ответ Claude разобран, ошибка — откат на �
   assert.doesNotMatch(b.fallbackReason, /sk-ant-REDACTED/);
 });
 
-test('publishedlog: второй раз то же видео на ту же площадку не уходит', () => {
+test('publishedlog: the same video to the same platform a second time is not sent', () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-log-'));
   const log = createLog(join(dir, 'published.jsonl'));
   assert.equal(log.was('C:/out/a.mp4', 'youtube'), false);
@@ -179,12 +179,12 @@ test('publishedlog: второй раз то же видео на ту же пл
   assert.match(readFileSync(join(dir, 'published.jsonl'), 'utf8'), /abc/);
 });
 
-test('packages: в TikTok есть описание, а не только заголовок и теги', () => {
+test('packages: TikTok has a description, not just a title and tags', () => {
   const p = buildPackages({ titleRu: 'Пять моментов', descRu: 'Собрали лучшие моменты — какой самый милый?', tags: [] });
   const lines = p.tiktok.caption.split('\n');
   assert.equal(lines[0], 'Пять моментов');
   assert.ok(lines.includes('Собрали лучшие моменты — какой самый милый?'), p.tiktok.caption);
   assert.match(lines.at(-1), /^#/);
   const empty = buildPackages({ titleRu: 'Пять моментов', descRu: '', tags: [] });
-  assert.equal(empty.tiktok.caption.split('\n').length, 2, 'без описания пустой строки нет');
+  assert.equal(empty.tiktok.caption.split('\n').length, 2, 'no empty lines without a description');
 });

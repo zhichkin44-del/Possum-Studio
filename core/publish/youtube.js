@@ -1,4 +1,4 @@
-// YouTube Shorts: resumable-загрузка, privacyStatus явно и с проверкой, обложка. Только по кнопке владельца.
+// YouTube Shorts: resumable upload, privacyStatus set explicitly and verified, cover. Only by the owner's button.
 import { createReadStream, readFileSync, statSync } from 'node:fs';
 import { Readable } from 'node:stream';
 
@@ -20,7 +20,7 @@ export async function uploadYoutube({ file, meta, cover, accessToken, fetchImpl 
   const location = init.headers.get('location');
   if (!location) throw new Error('YouTube не дал адрес загрузки');
 
-  const put = await fetchImpl(location, { method: 'PUT', headers: { ...auth, 'Content-Type': 'video/mp4', 'Content-Length': String(size) }, body: Readable.toWeb(createReadStream(file)), duplex: 'half' }); // поток: ролик не грузится в память целиком
+  const put = await fetchImpl(location, { method: 'PUT', headers: { ...auth, 'Content-Type': 'video/mp4', 'Content-Length': String(size) }, body: Readable.toWeb(createReadStream(file)), duplex: 'half' }); // stream: the video is not loaded into memory as a whole
   if (!put.ok) throw new Error(`YouTube: загрузка оборвалась (${put.status})`);
   const video = await put.json();
   const warnings = [];

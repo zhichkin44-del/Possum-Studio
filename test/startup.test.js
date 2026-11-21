@@ -1,4 +1,4 @@
-// Запуск со «старым» ботом: вебхук, 409, меню команд.
+// Startup with the "old" bot: webhook, 409, command menu.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -6,7 +6,7 @@ import { prepareBot, createPoller, CONFLICT_HELP, OWNER_COMMANDS } from '../src/
 import { createTelegram } from '../src/telegram.js';
 import { makeWorld } from './helpers.js';
 
-test('старт: вебхук сбрасывается с отбрасыванием старых сообщений, меню по умолчанию очищается, у Саши — своё', async () => {
+test('startup: webhook is reset dropping old messages, default menu is cleared, owner gets their own', async () => {
   const calls = []; const logs = [];
   const store = { data: {}, save() {} };
   const tg = { deleteWebhook: async (o) => calls.push(['deleteWebhook', o]), setMyCommands: async (c, o) => calls.push(['setMyCommands', c, o]) };
@@ -16,15 +16,15 @@ test('старт: вебхук сбрасывается с отбрасыван�
   assert.deepEqual(calls[2], ['setMyCommands', OWNER_COMMANDS, { chatId: 111 }]);
 });
 
-test('сбой сброса вебхука или меню не роняет запуск, а попадает в лог', async () => {
+test('a failed webhook or menu reset does not crash startup, it goes to the log', async () => {
   const logs = [];
   const tg = { deleteWebhook: async () => { throw new Error('нет сети'); }, setMyCommands: async () => { throw new Error('нет сети'); } };
   await prepareBot({ tg, log: (m) => logs.push(m), ownerId: null });
-  assert.ok(logs.some((l) => /вебхук/i.test(l) && /нет сети/.test(l)));
-  assert.ok(logs.some((l) => /меню/i.test(l)));
+  assert.ok(logs.some((l) => /webhook/i.test(l) && /нет сети/.test(l)));
+  assert.ok(logs.some((l) => /menu/i.test(l)));
 });
 
-test('ответ 409 в цикле опроса: понятная строка в лог, повтор, без падения и выхода; потом сообщения обрабатываются', async () => {
+test('a 409 response in the polling loop: clear log line, retry, no crash or exit; then messages are processed', async () => {
   const w = makeWorld();
   const logs = []; let n = 0; let handled = 0; const resets = [];
   const tg = {
@@ -39,12 +39,12 @@ test('ответ 409 в цикле опроса: понятная строка �
   const poller = createPoller({ tg, bot, store: w.store, log: (m) => logs.push(m), sleep: async () => {}, tg409Reset: async () => resets.push(1) });
   await poller.run();
   assert.equal(logs.filter((l) => l.includes(CONFLICT_HELP)).length, 3);
-  assert.equal(resets.length, 1, 'вебхук снимаем один раз за серию 409, а не на каждом повторе');
+  assert.equal(resets.length, 1, 'webhook is removed once per 409 series, not on every retry');
   assert.equal(handled, 1);
   assert.equal(w.store.data.offset, 51);
 });
 
-test('пауза между повторами при 409 растёт и не превышает минуты', async () => {
+test('pause between retries on 409 grows and does not exceed a minute', async () => {
   const w = makeWorld(); const waits = []; let n = 0;
   const tg = { async getUpdates() { n++; if (n > 9) { poller.stop(); return []; } throw new Error('409'); } };
   const poller = createPoller({ tg, bot: { handleUpdate: async () => {} }, store: w.store, log: () => {}, sleep: async (ms) => waits.push(ms) });
@@ -53,7 +53,7 @@ test('пауза между повторами при 409 растёт и не �
   assert.ok(Math.max(...waits) <= 60_000);
 });
 
-test('настоящий клиент: deleteWebhook шлёт drop_pending_updates, setMyCommands — scope чата', async () => {
+test('real client: deleteWebhook sends drop_pending_updates, setMyCommands — chat scope', async () => {
   const calls = [];
   const s = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
@@ -72,7 +72,7 @@ test('настоящий клиент: deleteWebhook шлёт drop_pending_updat
   s.close();
 });
 
-test('Саша регистрируется — ему сразу ставится меню команд', async () => {
+test('owner registers — the command menu is set for them at once', async () => {
   const w = makeWorld();
   await w.register();
   assert.equal(w.tg.menus.length, 1);
@@ -80,7 +80,7 @@ test('Саша регистрируется — ему сразу ставитс
   assert.equal(w.tg.menus[0].commands[0].command, 'status');
 });
 
-test('второй и следующие запуски НЕ отбрасывают сообщения: видео напарницы, пришедшие пока бот был выключен, сохраняются', async () => {
+test('second and later starts do NOT drop messages: partner videos that arrived while the bot was off are kept', async () => {
   const calls = []; const store = { data: {}, save() {} };
   const tg = { deleteWebhook: async (o) => calls.push(o), setMyCommands: async () => {} };
   await prepareBot({ tg, log: () => {}, store });
@@ -88,13 +88,13 @@ test('второй и следующие запуски НЕ отбрасыва�
   assert.deepEqual(calls, [{ dropPending: true }, { dropPending: false }]);
 });
 
-test('если сброс вебхука не удался, флаг не ставится: следующий запуск попробует снова с отбрасыванием', async () => {
+test('if the webhook reset failed, the flag is not set: the next start tries again with dropping', async () => {
   const store = { data: {}, save() {} };
   await prepareBot({ tg: { deleteWebhook: async () => { throw new Error('нет сети'); }, setMyCommands: async () => {} }, log: () => {}, store });
   assert.equal(store.data.webhookCleared, undefined);
 });
 
-test('код ответа 409 из настоящего клиента доходит до цикла опроса (не теряется при обёртке ошибки)', async () => {
+test('the 409 response code from the real client reaches the polling loop (not lost when the error is wrapped)', async () => {
   const s = http.createServer((req, res) => { res.statusCode = 409; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ ok: false, error_code: 409, description: 'Conflict: terminated by other getUpdates request' })); });
   await new Promise((r) => s.listen(0, '127.0.0.1', r));
   const tg = createTelegram({ token: '123456:CODE-TOKEN-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123', apiBase: `http://127.0.0.1:${s.address().port}` });
@@ -102,7 +102,7 @@ test('код ответа 409 из настоящего клиента дохо�
   s.close();
 });
 
-test('после нового успешного опроса счётчик 409 обнуляется, и вебхук снимается снова при следующей серии', async () => {
+test('after a new successful poll the 409 counter resets, and the webhook is removed again in the next series', async () => {
   const w = makeWorld(); let n = 0; const resets = [];
   const seq = ['409', 'ok', '409', 'stop'];
   const tg = { async getUpdates() { const k = seq[n++]; if (k === '409') throw new Error('409'); if (k === 'stop') { poller.stop(); } return []; } };

@@ -1,4 +1,4 @@
-// Мост окно ↔ приложение: окно не видит Node, ключей и файлов — только эти вызовы.
+// Bridge window ↔ app: the window sees no Node, keys or files — only these calls.
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const on = (ch) => (fn) => { ipcRenderer.on(ch, (_e, v) => fn(v)); };

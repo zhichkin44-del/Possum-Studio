@@ -1,19 +1,19 @@
-// Каталог идей для напарницы: что снять, как снять, как выложить, что работает лучше и хуже.
-// Каждая идея — тип сюжета из KINDS (монтаж знает, как его собрать), кадры в стиле режиссёра (свет один — LIGHT).
-// Благополучие зверька выше контента: еда — только из списка SAFE_TREATS крошечным кусочком, одежды нет, свет не включаем.
-// Источники про еду и одежду: MSD Vet Manual, VCA, Exotic Nutrition, Colorado Exotic Animal Hospital (см. docs/IDEAS-SOURCES.md).
+// Idea catalog for the partner: what to shoot, how to shoot, how to publish, what works better and worse.
+// Each idea is a story type from KINDS (the editing knows how to assemble it), frames in the director's style (one light — LIGHT).
+// The pet's well-being comes before content: food — only from the SAFE_TREATS list in a tiny piece, no clothes, we do not turn on lights.
+// Sources on food and clothing: MSD Vet Manual, VCA, Exotic Nutrition, Colorado Exotic Animal Hospital.
 
 import { LIGHT } from './director.js';
 
 const shot = (what, angle, secs) => ({ what, angle, secs, light: LIGHT });
 
-/** Лакомства, которые ветеринарные памятки называют безопасными: мыть, резать мельче горошины, не больше пары кусочков. */
+/** Treats that veterinary guides call safe: wash, cut smaller than a pea, no more than a couple of pieces. */
 export const SAFE_TREATS = [
   'яблоко без семечек', 'груша без семечек', 'банан', 'черника', 'малина', 'клубника', 'дыня', 'папайя',
   'кукуруза', 'варёный батат', 'мучной червь или сверчок (живой корм из зоомагазина)', 'варёное яйцо', 'варёная курица или индейка без соли',
 ];
 
-/** Нельзя никогда. Слово для проверки текста — первое в строке (корень). */
+/** Never allowed. The word for checking the text — the first one in the line (the root). */
 export const FORBIDDEN = [
   ['шоколад', 'шоколад, какао'],
   ['кофе', 'кофе, чай, газировка, энергетики'],
@@ -38,7 +38,7 @@ export const FORBIDDEN = [
   ['алкогол', 'алкоголь'],
 ];
 
-/** Почему без одежды: коротко, для карточки и наставника. */
+/** Why no clothing: briefly, for the card and the mentor. */
 export const NO_COSTUME = {
   id: 'no-costume', title: 'Костюмы и одежда — нет',
   why: 'Когти цепляются за ткань: зверёк дёргается и может сломать пальчик, запястье или лапку. Шлейки и поводки тоже нельзя.',
@@ -49,7 +49,7 @@ export const NO_COSTUME = {
   ],
 };
 
-/** Разделы каталога: по порядку показа. */
+/** Catalog sections: in display order. */
 export const CATEGORIES = [
   ['food', 'Мини-ресторан'],
   ['set', 'Мини-декорации'],
@@ -243,7 +243,7 @@ export const IDEAS = [
   },
 ];
 
-/** Как вести и выкладывать: общие правила «лучше / хуже». Без обещаний в цифрах. */
+/** How to run and publish: general "better / worse" rules. No numeric promises. */
 export const POSTING = [
   { title: 'Первая секунда', better: 'Сразу мордочка или действие и надпись-вопрос.', worse: 'Пустой кадр, заставка, логотип в начале.' },
   { title: 'Формат', better: 'Вертикально 9:16, 15–40 секунд, подписи на экране — многие смотрят без звука.', worse: 'Горизонтальное видео, длинные ролики без сюжета.' },
@@ -255,10 +255,10 @@ export const POSTING = [
   { title: 'Благополучие', better: 'Пишем в подписи, если у зверька всё как надо: «живёт с нами, ветеринар проверяет».', worse: 'Вспышка, белый свет, одежда, человеческая еда — знающие зрители заметят и напишут.' },
 ];
 
-/** Каталог целиком для окна. */
+/** The whole catalog for the window. */
 export function catalog() {
   return { categories: CATEGORIES, ideas: IDEAS, noCostume: NO_COSTUME, safe: SAFE_TREATS, forbidden: [...new Set(FORBIDDEN.map(([, label]) => label))], posting: POSTING };
 }
 
-/** Идеи под тип сюжета дня — чтобы «Что снять сегодня» предлагал варианты. */
+/** Ideas for the day's story type — so that "What to shoot today" offers options. */
 export const ideasFor = (kind) => IDEAS.filter((i) => i.kind === kind);

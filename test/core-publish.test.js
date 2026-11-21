@@ -1,4 +1,4 @@
-// Вход, выкладка и монтаж: сеть подменена, ни одного настоящего ключа и запроса наружу.
+// Login, publishing and editing: network stubbed, not a single real key or outgoing request.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -21,7 +21,7 @@ import { processVideo } from '../core/pipeline.js';
 const MB = 1024 * 1024;
 const tmp = () => mkdtempSync(join(tmpdir(), 'possum-pub-'));
 
-/** Поддельная сеть: отвечает по списку правил и запоминает все вызовы. */
+/** Fake network: answers from a list of rules and remembers all calls. */
 function fakeFetch(rules) {
   const calls = [];
   const fn = async (url, opts = {}) => {
@@ -46,7 +46,7 @@ function fileOf(bytes) {
   return { dir: d, file: f };
 }
 
-test('PKCE: Google — base64url, TikTok — hex, оба SHA-256 от verifier', () => {
+test('PKCE: Google — base64url, TikTok — hex, both SHA-256 of the verifier', () => {
   const g = pkce('google'), t = pkce('tiktok');
   const sha = (v) => createHash('sha256').update(v).digest();
   assert.equal(g.challenge, sha(g.verifier).toString('base64url'));
@@ -55,7 +55,7 @@ test('PKCE: Google — base64url, TikTok — hex, оба SHA-256 от verifier',
   assert.ok(g.verifier.length >= 43 && g.verifier.length <= 128);
 });
 
-test('ссылки входа: офлайн-доступ Google и права TikTok на черновики', () => {
+test('sign-in links: Google offline access and TikTok draft permissions', () => {
   const g = new URL(googleAuthUrl({ clientId: 'cid', redirectUri: 'http://127.0.0.1:5/callback/', challenge: 'ch', state: 'st' }));
   assert.equal(g.searchParams.get('access_type'), 'offline');
   assert.equal(g.searchParams.get('prompt'), 'consent');
@@ -66,7 +66,7 @@ test('ссылки входа: офлайн-доступ Google и права Ti
   assert.equal(t.searchParams.get('client_key'), 'ck');
 });
 
-test('loopback: принимает код из браузера и закрывается', async () => {
+test('loopback: accepts the code from the browser and closes', async () => {
   const lb = await startLoopback({ port: 0, timeoutMs: 5000 });
   assert.match(lb.redirectUri, /^http:\/\/127\.0\.0\.1:\d+\/callback\/$/);
   const r = await fetch(`${lb.redirectUri}?code=abc&state=xyz`);
@@ -74,7 +74,7 @@ test('loopback: принимает код из браузера и закрыв�
   assert.deepEqual(await lb.wait(), { code: 'abc', state: 'xyz' });
 });
 
-test('signIn: чужой state отвергается', async () => {
+test('signIn: foreign state is rejected', async () => {
   const openUrl = async (url) => {
     const redirect = new URL(url).searchParams.get('redirect_uri');
     await fetch(`${redirect}?code=c1&state=evil`);
@@ -82,7 +82,7 @@ test('signIn: чужой state отвергается', async () => {
   await assert.rejects(signIn('google', { clientId: 'a', clientSecret: 'b' }, { openUrl, port: 0, fetchImpl: fakeFetch([]) }), /state/);
 });
 
-test('signIn: обмен кода на refresh-токен', async () => {
+test('signIn: code exchanged for a refresh token', async () => {
   const fetchImpl = fakeFetch([{ match: (u) => u.includes('oauth2.googleapis.com/token'), reply: { json: { access_token: 'AT', refresh_token: 'RT' } } }]);
   const openUrl = async (url) => {
     const q = new URL(url).searchParams;
@@ -95,7 +95,7 @@ test('signIn: обмен кода на refresh-токен', async () => {
   assert.ok(body.get('code_verifier'));
 });
 
-test('выкладка без кнопки владельца невозможна', async () => {
+test('publishing without the owner button is impossible', async () => {
   const { file } = fileOf(10);
   await assert.rejects(uploadYoutube({ file, meta: { title: 't' }, accessToken: 'x', fetchImpl: fakeFetch([]) }), /кнопке владельца/);
   await assert.rejects(draftTiktok({ file, accessToken: 'x', fetchImpl: fakeFetch([]) }), /кнопке владельца/);
@@ -103,7 +103,7 @@ test('выкладка без кнопки владельца невозможн
   await assert.rejects(publishOne('youtube', { outputs: { youtube: file } }, { settings: {} }), /кнопке владельца/);
 });
 
-test('YouTube: resumable → PUT → обложка; доступ проверяется', async () => {
+test('YouTube: resumable → PUT → thumbnail; access is checked', async () => {
   const { dir, file } = fileOf(2048);
   const cover = join(dir, 'c.jpg'); writeFileSync(cover, 'jpg');
   const fetchImpl = fakeFetch([
@@ -119,11 +119,11 @@ test('YouTube: resumable → PUT → обложка; доступ проверя
   assert.equal(init.snippet.categoryId, '15');
   assert.equal(fetchImpl.calls[0].headers['X-Upload-Content-Length'], '2048');
   assert.equal(fetchImpl.calls[1].method, 'PUT');
-  assert.equal(r.warnings.length, 2, 'и про доступ, и про обложку');
+  assert.equal(r.warnings.length, 2, 'both about access and the thumbnail');
   assert.match(r.warnings[0], /private/);
 });
 
-test('TikTok: куски по правилам (≤64 МБ — один, больше — по 10 МБ, остаток в последнем)', () => {
+test('TikTok: chunks by rules (≤64 MB — one, more — 10 MB each, remainder in the last)', () => {
   assert.deepEqual(chunkPlan(5 * MB), { chunkSize: 5 * MB, total: 1 });
   assert.deepEqual(chunkPlan(64 * MB), { chunkSize: 64 * MB, total: 1 });
   const size = 100 * MB + 12345;
@@ -134,7 +134,7 @@ test('TikTok: куски по правилам (≤64 МБ — один, бол�
   for (let i = 1; i < rs.length; i++) assert.equal(rs[i].start, rs[i - 1].end + 1);
 });
 
-test('TikTok: черновик загружается, подсказка при 5 неразобранных', async () => {
+test('TikTok: draft is uploaded, hint at 5 unparsed items', async () => {
   const { file } = fileOf(3000);
   const ok = fakeFetch([
     { match: (u) => u.includes('/inbox/video/init/'), reply: { json: { data: { publish_id: 'P1', upload_url: 'https://up.tt/1' }, error: { code: 'ok' } } } },
@@ -147,7 +147,7 @@ test('TikTok: черновик загружается, подсказка при
   await assert.rejects(draftTiktok({ file, accessToken: 'AT', fetchImpl: busy, confirm: true }), /5 неразобранных/);
 });
 
-test('Instagram: контейнер → ждём FINISHED → публикация; без ссылки — ручной пакет', async () => {
+test('Instagram: container → wait for FINISHED → publish; without link — manual package', async () => {
   let polls = 0;
   const fetchImpl = fakeFetch([
     { match: (u) => u.endsWith('/42/media'), reply: { json: { id: 'C1' } } },
@@ -158,13 +158,13 @@ test('Instagram: контейнер → ждём FINISHED → публикаци
   assert.equal(r.id, 'M9');
   assert.equal(polls, 2);
   assert.equal(fetchImpl.calls[0].headers.Authorization, 'Bearer IGT');
-  assert.ok(!fetchImpl.calls[0].url.includes('IGT'), 'токен не в адресе');
+  assert.ok(!fetchImpl.calls[0].url.includes('IGT'), 'token is not in the URL');
   const m = manualPackage({ file: 'reels.mp4', caption: 'c' });
   assert.equal(m.manual, true);
   assert.ok(m.steps.length >= 3);
 });
 
-test('publishOne: обновляет токен, пишет журнал, второй раз не выкладывает, ключи не утекают в ошибки', async () => {
+test('publishOne: refreshes the token, writes the log, does not publish a second time, keys do not leak into errors', async () => {
   const { dir, file } = fileOf(100);
   const log = createLog(join(dir, 'log.jsonl'));
   const manifest = { outputs: { youtube: file }, cover: null, packages: { youtube: { title: 't', privacyStatus: 'public' } } };
@@ -187,7 +187,7 @@ test('publishOne: обновляет токен, пишет журнал, вто
   await assert.rejects(publishOne('tiktok', { outputs: { tiktok: file } }, { settings: {}, confirm: true, fetchImpl }), /не подключён/);
 });
 
-test('рендер: подписи переносятся, граф собран под площадку', () => {
+test('render: captions wrap, graph built for the platform', () => {
   assert.deepEqual(wrapLines('Прыжок, которого никто не ждал', 20), ['Прыжок, которого', 'никто не ждал']);
   const a = { duration: 16, best: { t: 9 }, peaks: [{ t: 9, kind: 'move' }, { t: 12, kind: 'squeak' }] };
   const yt = makePlan(a, 'youtube', { music: 'm.wav', captions: { ru: 'Привет', en: 'Hi' } });
@@ -200,7 +200,7 @@ test('рендер: подписи переносятся, граф собран
   assert.ok(args.includes('m.wav'));
   const tt = makePlan(a, 'tiktok', { music: 'm.wav' });
   const ttArgs = buildRenderArgs({ src: 'in.mp4', plan: tt, hasAudio: false, out: 'o.mp4' });
-  assert.ok(!ttArgs.includes('m.wav'), 'в TikTok без музыки — звук ставят в приложении');
+  assert.ok(!ttArgs.includes('m.wav'), 'in TikTok without music — sound is added in the app');
   assert.match(ttArgs[ttArgs.indexOf('-filter_complex') + 1], /aevalsrc=0/);
 });
 
@@ -208,7 +208,7 @@ const media = createMedia();
 let hasFfmpeg = true;
 try { await media.probe('нет-такого-файла.mp4'); } catch (e) { hasFfmpeg = !/Не найден ffmpeg/.test(e.message); }
 
-test('конвейер целиком на синтетическом ролике (если есть ffmpeg)', { skip: !hasFfmpeg && 'нет ffmpeg', timeout: 240_000 }, async () => {
+test('whole pipeline on a synthetic clip (if ffmpeg is present)', { skip: !hasFfmpeg && 'no ffmpeg', timeout: 240_000 }, async () => {
   const d = tmp();
   const src = join(d, 'clip.mp4');
   await media.ffmpeg(['-y', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=6', '-f', 'lavfi', '-i', 'sine=f=440:d=6', '-shortest', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src]);
@@ -224,9 +224,9 @@ test('конвейер целиком на синтетическом ролик
   assert.equal(info.height, 1920);
   assert.ok(info.hasAudio);
   assert.equal(m.texts.source, 'шаблон');
-  assert.ok(!existsSync(join(m.dir, '_work')), 'рабочая папка убрана');
+  assert.ok(!existsSync(join(m.dir, '_work')), 'work folder removed');
   const post = readFileSync(join(m.dir, 'пост.txt'), 'utf8');
   assert.match(post, /Instagram Reels/);
-  assert.ok(!/Пип/.test(post), 'кличка вырезана');
+  assert.ok(!/Пип/.test(post), 'pet nickname removed');
   assert.equal(steps.at(-1), 'Готово');
 });

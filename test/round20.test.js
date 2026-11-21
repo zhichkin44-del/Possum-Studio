@@ -1,6 +1,6 @@
-// Круг 20 (зрители r4, среднее 5.50): куски одного видео стоят подряд («один исходник в два раза»);
-// крючок — смазанный кусок с пальцем; мордочка 0120 начинается до неё (рука в кадре); смазанные прыжки с писком
-// выглядят как падение; «Эпизод N» гаснет через секунду.
+// Round 20 (viewers r4, average 5.50): pieces of one video are placed back to back ("one source, twice over");
+// the hook — a blurred piece with a finger; the face of 0120 starts before it (a hand in the frame); blurred jumps with a squeak
+// look like a fall; "Episode N" fades out after a second.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeStories, pieceAround } from '../core/stories.js';
@@ -27,8 +27,8 @@ function fakeLib(clips) {
 const top5Of = (clips) => makeStories(fakeLib(clips), { history: [], now: NOW, count: 1 }).find((s) => s.kind === 'top5');
 const adjacent = (ps) => ps.some((p, k) => k > 0 && ps[k - 1].clip === p.clip);
 
-test('топ-5: куски одного видео не стоят подряд; при достатке видео — по одному куску с видео', () => {
-  // у двух видео по два лучших плана: раньше брались парами и шли подряд
+test('top-5: pieces of one video do not stand together; with enough videos — one piece per video', () => {
+  // two videos with two best shots each: before, they were taken in pairs and ran back to back
   const clips = [
     clip('a', [shot(0, 4, ['движение'], 0.9), shot(4, 4, ['движение'], 0.88)]),
     clip('b', [shot(0, 4, ['движение'], 0.86), shot(4, 4, ['движение'], 0.85)]),
@@ -38,14 +38,14 @@ test('топ-5: куски одного видео не стоят подряд;
   ];
   const t = top5Of(clips);
   assert.ok(t);
-  assert.equal(new Set(t.pieces.map((p) => p.clip)).size, 5, 'пять видео — пять разных исходников');
-  // видео мало: два куска с одного видео допустимы, но не подряд
+  assert.equal(new Set(t.pieces.map((p) => p.clip)).size, 5, 'five videos — five different sources');
+  // few videos: two pieces from one video are allowed, but not back to back
   const t2 = top5Of(clips.slice(0, 3).concat(clip('f', [shot(0, 4, ['движение'], 0.5)])));
   assert.ok(t2);
   assert.ok(!adjacent(t2.pieces), t2.pieces.map((p) => p.clip).join(','));
 });
 
-test('топ-5: крючок — резкий и живой кусок, а не смазанный', () => {
+test('top-5: the hook is a sharp, lively piece, not a blurred one', () => {
   const clips = [
     clip('blur', [shot(0, 4, ['движение'], 0.7, { sharp: 0.3, motion: 9 })]),
     clip('sharp', [shot(0, 4, ['движение'], 0.7, { sharp: 0.75, motion: 6 })]),
@@ -55,10 +55,10 @@ test('топ-5: крючок — резкий и живой кусок, а не 
   ];
   const t = top5Of(clips);
   assert.equal(t.pieces[0].clip, 'sharp');
-  assert.equal(t.pieces.at(-1).clip, 'e', 'лучший остаётся №1');
+  assert.equal(t.pieces.at(-1).clip, 'e', 'best stays №1');
 });
 
-test('топ-5: смазанный прыжок с писком — не крючок и не в начале', () => {
+test('top-5: a blurred jump with a squeak — not the hook and not at the start', () => {
   const clips = [
     clip('fall', [shot(0, 4, ['движение', 'прыжок', 'писк'], 0.8, { sharp: 0.34, motion: 12 })]),
     clip('b', [shot(0, 4, ['движение'], 0.7)]),
@@ -68,32 +68,32 @@ test('топ-5: смазанный прыжок с писком — не крю�
     clip('f', [shot(0, 4, ['движение'], 0.66)]),
   ];
   const t = top5Of(clips);
-  assert.ok(!t.pieces.some((p) => p.clip === 'fall'), 'есть пять чистых кусков — смазанный прыжок не нужен');
+  assert.ok(!t.pieces.some((p) => p.clip === 'fall'), 'five clean pieces exist — the blurred jump is not needed');
 });
 
-test('кусок с мордочкой начинается с самой мордочки: рука до неё в ролик не попадает', () => {
+test('a piece with a face starts at the face itself: the hand before it does not get into the clip', () => {
   const c = clip('h', [shot(4, 9, ['движение'])]);
   c.shots[0].best = { t: 8, kind: 'мордочка', score: 1 };
   const p = pieceAround(c, 0, 3.5);
   assert.equal(p.from, 8);
   assert.equal(p.len, 3.5);
   assert.equal(p.peak, 0);
-  // мордочка у конца плана — кусок не выходит за план
+  // the face near the end of the shot — the piece does not go past the shot
   c.shots[0].best.t = 12;
   const q = pieceAround(c, 0, 3.5);
   assert.ok(q.from + q.len <= 13 + 1e-9 && q.from >= 4);
 });
 
-test('серия: смазанные прыжки с писком — не «эпизод»; берётся видео с чистыми кусками', () => {
+test('series: blurred jumps with a squeak are not an "episode"; a video with clean pieces is taken', () => {
   const blur = clip('blur', [0, 1, 2, 3].map((k) => shot(k * 5, 5, ['движение', ...(k % 2 ? ['прыжок', 'писк'] : [])], 0.7, { sharp: 0.35 })));
   const clean = clip('clean', [0, 1, 2, 3].map((k) => shot(k * 5, 5, ['движение'], 0.6)));
   const lib = fakeLib([blur, clean]);
   const s = makeStories(lib, { history: [{ kind: 'top5', at: NOW - DAY }], now: NOW, count: 3 }).find((x) => x.kind === 'series');
-  assert.ok(s, 'серия собрана');
+  assert.ok(s, 'series assembled');
   assert.ok(s.pieces.every((p) => p.clip === 'clean'), s.pieces.map((p) => `${p.clip}:${p.shot}`).join(','));
 });
 
-test('«Эпизод N» держится весь ролик, а не одну секунду', () => {
+test('"Episode N" holds for the whole clip, not for one second', () => {
   const clean = clip('clean', [0, 1, 2, 3].map((k) => shot(k * 5, 5, ['движение'], 0.6)));
   const s = makeStories(fakeLib([clean]), { history: [{ kind: 'top5', at: NOW - DAY }], now: NOW, count: 1 }).find((x) => x.kind === 'series');
   assert.ok(s);

@@ -1,10 +1,10 @@
-// Вход владельца в YouTube и TikTok через браузер (loopback + PKCE). Токены уходят только в settings.json, в логи — никогда.
+// The owner's sign-in to YouTube and TikTok through the browser (loopback + PKCE). Tokens go only to settings.json, never to logs.
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 
 const b64url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-/** Google — base64url(SHA256), TikTok — hex(SHA256): у них разные требования. */
+/** Google — base64url(SHA256), TikTok — hex(SHA256): their requirements differ. */
 export function pkce(kind = 'google') {
   const verifier = b64url(randomBytes(48));
   const digest = createHash('sha256').update(verifier).digest();
@@ -31,7 +31,7 @@ export function tiktokAuthUrl({ clientKey, redirectUri, challenge, state: st }) 
   return `https://www.tiktok.com/v2/auth/authorize/?${q}`;
 }
 
-/** Ждёт один редирект на http://127.0.0.1:<port>/callback/ и отдаёт code. */
+/** Waits for one redirect to http://127.0.0.1:<port>/callback/ and returns the code. */
 export function startLoopback({ port = 0, host = '127.0.0.1', timeoutMs = 5 * 60_000 } = {}) {
   return new Promise((resolveStart, rejectStart) => {
     let done;
@@ -81,8 +81,8 @@ export const tiktok = {
 };
 
 /**
- * Полный вход: поднять loopback, открыть браузер (openUrl), дождаться кода, обменять на токены.
- * Возвращает { refreshToken, accessToken } — вызывающий сам сохраняет в настройки.
+ * Full sign-in: start the loopback, open the browser (openUrl), wait for the code, exchange it for tokens.
+ * Returns { refreshToken, accessToken } — the caller saves them to the settings itself.
  */
 export async function signIn(kind, creds, { openUrl, fetchImpl = fetch, port } = {}) {
   const lb = await startLoopback({ port: port ?? (kind === 'tiktok' ? 17841 : 0) });

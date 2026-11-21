@@ -1,4 +1,4 @@
-// Настоящий монтаж: синтетический «телефонный» клип → ffmpeg → 1080×1920, ≤20 с, звук, обложка, лист проверки.
+// Real editing: synthetic "phone" clip → ffmpeg → 1080×1920, ≤20 s, sound, cover, check sheet.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -21,7 +21,7 @@ function makeClip(dir, name, seconds, w = 1280, h = 720, sound = true) {
   return out;
 }
 
-test('probe: длительность, размер, яркость, звук', { skip, timeout: 120_000 }, async () => {
+test('probe: duration, size, brightness, sound', { skip, timeout: 120_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-m-'));
   const m = createMontage({});
   const clip = makeClip(dir, 'a.mp4', 3);
@@ -32,7 +32,7 @@ test('probe: длительность, размер, яркость, звук', 
   assert.ok(p.luma > 20 && p.luma < 240, `luma=${p.luma}`);
 });
 
-test('build: горизонтальный клип 40 с → вертикальный ролик ≤ 20 с с заставкой, обложкой и листом проверки', { skip, timeout: 240_000 }, async () => {
+test('build: 40 s horizontal clip → vertical clip ≤ 20 s with intro, cover and check sheet', { skip, timeout: 240_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-m-'));
   const m = createMontage({});
   const clip = makeClip(dir, 'long.mp4', 40);
@@ -46,7 +46,7 @@ test('build: горизонтальный клип 40 с → вертикаль�
   assert.deepEqual(qualityIssues(r), []);
 });
 
-test('build: три коротких клипа склеиваются, видео без звука получает тишину и не падает', { skip, timeout: 240_000 }, async () => {
+test('build: three short clips are joined, a video without sound gets silence and does not crash', { skip, timeout: 240_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-m-'));
   const m = createMontage({});
   const clips = [makeClip(dir, 'a.mp4', 5, 1080, 1920), makeClip(dir, 'b.mp4', 4, 1920, 1080, false), makeClip(dir, 'c.mp4', 6, 720, 1280)].map((path) => ({ path }));
@@ -56,7 +56,7 @@ test('build: три коротких клипа склеиваются, виде
   assert.equal(r.height, 1920);
 });
 
-test('build: путь с пробелами и кириллицей не ломает ffmpeg', { skip, timeout: 240_000 }, async () => {
+test('build: a path with spaces and Cyrillic does not break ffmpeg', { skip, timeout: 240_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum m-ё-'));
   const m = createMontage({});
   const clip = makeClip(dir, 'клип 1.mp4', 9);
@@ -64,7 +64,7 @@ test('build: путь с пробелами и кириллицей не лом�
   assert.ok(existsSync(r.video));
 });
 
-test('build: заставка RU+EN, громкость около −14 LUFS, хук в движении', { skip, timeout: 240_000 }, async () => {
+test('build: RU+EN intro, loudness around −14 LUFS, hook in motion', { skip, timeout: 240_000 }, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-m-'));
   const m = createMontage({});
   const clip = makeClip(dir, 'a.mp4', 20);

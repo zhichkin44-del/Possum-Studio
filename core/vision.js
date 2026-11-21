@@ -1,14 +1,14 @@
-// Шаг Б разбора, по желанию: лист 3×3 из лучших кадров клипа → Haiku → что делает зверёк по каждому кадру.
-// Без ключа (или при дневном потолке) — метки из сигналов, честно «без Claude». Кэш по id клипа.
+// Step B of the analysis, optional: a 3×3 sheet of the clip's best frames → Haiku → what the pet does in each frame.
+// Without a key (or at the daily cap) — labels from the signals, honestly "without Claude". Cache by clip id.
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { stripNames } from './packages.js';
 import { redactSecrets } from './settings.js';
 import { providerOf, modelFor, chatJson } from './openrouter.js';
 
-export const VISION_MODEL = 'claude-haiku-5-5'; // зашита, отдельно от модели текстов
+export const VISION_MODEL = 'claude-haiku-5-5'; // fixed, separate from the texts model
 export const ACTIONS = ['ест', 'прыжок', 'умывается', 'спит', 'играет', 'лазает', 'прячется', 'смотрит в камеру'];
-export const PRICE = { in: 0.10, out: 0.50 }; // $ за 1 млн токенов, Haiku 5.5 (из PLAN); цены OpenRouter — в core/openrouter.js
+export const PRICE = { in: 0.10, out: 0.50 }; // $ per 1M tokens, Haiku 5.5 (from PLAN); OpenRouter prices — in core/openrouter.js
 export const CELL = { w: 384, h: 216 };       // 3×3 → 1152×648
 const MOODS = ['спокойный', 'игривый', 'любопытный', 'сонный', 'насторожен'];
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -47,7 +47,7 @@ const PROMPT = [
   'Только то, что видно на кадрах. Без советов про свет и вспышку. Без имён.',
 ].join('\n');
 
-/** 9 кадров для листа: середины/лучшие моменты лучших хороших планов; если планов мало — несколько точек на план. */
+/** 9 frames for the sheet: the middles/best moments of the best good plans; if there are few plans — several points per plan. */
 export function pickSheetFrames(clip, count = 9) {
   const good = clip.shots.map((s, i) => ({ s, i })).filter((x) => !x.s.defects.length);
   const pool = (good.length ? good : clip.shots.map((s, i) => ({ s, i }))).sort((a, b) => b.s.score - a.s.score);
@@ -64,7 +64,7 @@ export function pickSheetFrames(clip, count = 9) {
   return out.sort((a, b) => a.t - b.t);
 }
 
-/** ffmpeg: 9 кадров → лист 1152×648 JPEG. */
+/** ffmpeg: 9 frames → a 1152×648 JPEG sheet. */
 export function sheetArgs({ src, frames, out }) {
   const fr = frames.slice(0, 9);
   while (fr.length < 9) fr.push(fr[fr.length - 1]);
@@ -83,13 +83,13 @@ export async function makeSheet({ src, clip, out, media }) {
   return { file: out, frames };
 }
 
-/** Метки без Claude: из сигналов, честно помечены. */
+/** Labels without Claude: from the signals, honestly marked. */
 export function signalVision(clip, note = 'без Claude') {
   const asmr = clip.shots.some((s) => s.labels.includes('asmr?') && !s.defects.length);
   return { by: 'сигналы', note, mood: null, asmr, cost: 0, frames: [] };
 }
 
-/** Ответ модели → формат library.setVision: n кадра → индекс плана, «стресс» — блок. */
+/** Model reply → the library.setVision format: frame n → plan index; the "stress" label — blocked. */
 export function toVision(j, frames, { cost = 0, petNames = [] } = {}) {
   const out = [];
   for (const f of Array.isArray(j?.frames) ? j.frames : []) {
@@ -113,17 +113,17 @@ export function costOf(usage = {}) {
 }
 
 /**
- * Разборщик. analyze({clip, image}) → vision для library.setVision.
- * image — Buffer JPEG листа (или путь), frames — какие планы на листе (из makeSheet).
+ * Analyzer. analyze({clip, image}) → vision for library.setVision.
+ * image — Buffer of the JPEG sheet (or a path), frames — which plans are on the sheet (from makeSheet).
  */
 export function createVision({ apiKey = '', client = null, model, dailyCapUsd = 0.25, cachePath = null, now = () => Date.now(), petNames = [], fetchImpl = fetch } = {}) {
-  // Ключ OpenRouter — модель из настроек (по умолчанию Haiku через OpenRouter); ключ Claude — Haiku через SDK, как раньше.
+  // OpenRouter key — the model from the settings (Haiku through OpenRouter by default); Claude key — Haiku through the SDK, as before.
   const viaOr = providerOf(apiKey) === 'openrouter';
   model = viaOr ? modelFor(apiKey, model) : (model ?? VISION_MODEL);
   const who = viaOr ? 'OpenRouter' : 'Claude';
   let sdk = client;
   let cache = { spend: {}, clips: {} };
-  if (cachePath && existsSync(cachePath)) { try { cache = { spend: {}, clips: {}, ...JSON.parse(readFileSync(cachePath, 'utf8')) }; } catch { /* битый кэш — начинаем заново */ } }
+  if (cachePath && existsSync(cachePath)) { try { cache = { spend: {}, clips: {}, ...JSON.parse(readFileSync(cachePath, 'utf8')) }; } catch { /* broken cache — start over */ } }
   const save = () => {
     if (!cachePath) return;
     mkdirSync(dirname(cachePath), { recursive: true });

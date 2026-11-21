@@ -1,7 +1,7 @@
-// Генератор сюжетов из планов всей библиотеки: топ-5, день из жизни, до/после, спокойные моменты, ASMR, серии.
-// «Фейлы» не собираются: резкий прыжок может значить испуг, такие куски только с пометкой «посмотрите».
-// Ворота разнообразия: вид сюжета подряд не повторяется, за 7 дней ≥ 3 разных вида, план — не чаще раза в 7 дней,
-// в одной пачке план не повторяется; исходное видео — не в соседних роликах и не больше 2 роликов за 7 дней, если есть другие. Только свободные хорошие планы (брак и «стресс» — никогда).
+// Story generator from the plans of the whole library: top 5, a day in the life, before/after, calm moments, ASMR, series.
+// "Fails" are not assembled: a sharp jump may mean fright, such pieces only with a "check it" mark.
+// Variety gates: a story kind does not repeat in a row, at least 3 different kinds in 7 days, a plan — no more than once every 7 days,
+// a plan is not repeated within one batch; the source video is not in adjacent videos and not in more than 2 videos in 7 days, if others exist. Only free good plans (defects and "stress" — never).
 import { createHash } from 'node:crypto';
 import { SHOT } from './shots.js';
 
@@ -10,7 +10,7 @@ const r2 = (x) => Math.round(x * 100) / 100;
 export const KINDS = ['top5', 'day', 'beforeAfter', 'calm', 'asmr', 'series'];
 const PRIORITY = { top5: 0, day: 1, series: 2, asmr: 3, beforeAfter: 4, calm: 5, fails: 6 };
 
-/** Заголовки по видам: повтор вида берёт следующий вариант, чтобы ролики не назывались одинаково. */
+/** Titles by kind: a repeated kind takes the next variant, so that videos are not named the same. */
 export const TITLE_VARIANTS = {
   top5: [
     { ru: 'Топ-5 моментов нашего зверька', en: 'Top 5 moments of our little animal' },
@@ -45,35 +45,35 @@ export const TITLE_VARIANTS = {
 };
 export const TITLES = Object.fromEntries(Object.entries(TITLE_VARIANTS).map(([k, v]) => [k, v[0]]));
 const THEME = { 'ест': ['ест', 'eats'], 'играет': ['играет', 'plays'], 'лазает': ['лазает', 'climbs'], 'умывается': ['умывается', 'grooming'], 'движение': ['в движении', 'on the move'], 'спит': ['спит', 'sleeps'] };
-// писк не тема серии: по звуку не понять, кто пищит, а писк может значить испуг — его не делают «рубрикой»
+// a squeak is not a series theme: from the sound you cannot tell who squeaks, and a squeak may mean fright — it is not made into a "column"
 const PARTS = ['Утро', 'День', 'Вечер', 'Ночь'];
 const PARTS_EN = { 'Утро': 'Morning', 'День': 'Day', 'Вечер': 'Evening', 'Ночь': 'Night' };
 
-/** Нижняя граница длины серии, секунды: короче 15 с ролик в ленте не досматривают. */
+/** Lower bound of the series length in seconds: shorter than 15 s, the video is not watched to the end in the feed. */
 export const SERIES_MIN = 15;
 
 const key = (p) => `${p.clip}:${p.shot}`;
 
-/** Кусок плана длиной до `len` вокруг лучшего момента. */
+/** A piece of the plan up to `len` long around the best moment. */
 export function pieceAround(clip, shotIdx, len, caption = null) {
   const s = clip.shots[shotIdx];
   const L = Math.min(len, s.len);
   const t = s.best?.t ?? s.from + s.len / 2;
-  // мордочка — с неё и начинаем: до неё в кадре обычно рука, которая подносит зверька
+  // the face — we start with it: before it there is usually a hand in the frame that brings the pet
   const lead = s.best?.kind === 'мордочка' ? 0 : L * 0.3;
   const from = Math.min(s.from + s.len - L, Math.max(s.from, t - lead));
   return { clip: clip.id, shot: shotIdx, from: r2(from), len: r2(L), peak: r2(Math.min(L, Math.max(0, t - from))), caption, why: s.why };
 }
 
 /**
- * Все свободные хорошие планы библиотеки, без уже взятых в этой пачке.
- * tired — исходные видео, которые сейчас лучше не брать (были в прошлом ролике или уже в 2 роликах за неделю).
+ * All free good plans of the library, without those already taken in this batch.
+ * tired — source videos that are better not taken now (they were in the previous video or already in 2 videos this week).
  */
 function freeShots(lib, taken, tired = null, focus = null) {
   const out = [];
   for (const c of lib.all()) {
     if (tired?.has(c.id) && !focus?.has(c.id)) continue;
-    // focus — видео, которые человек только что отметил «Это мой зверёк»: их планы идут первыми
+    // focus — videos the person has just marked "This is my pet": their plans go first
     const lift = focus?.has(c.id) ? 10 : 0;
     c.shots.forEach((s, i) => {
       if (taken.has(`${c.id}:${i}`) || !lib.isFree(c.id, i)) return;
@@ -84,8 +84,8 @@ function freeShots(lib, taken, tired = null, focus = null) {
 }
 
 /**
- * Исходные видео, которые «устали»: были в предыдущем ролике (соседний день) или уже в 2 роликах за 7 дней.
- * Считает и библиотеку (used), и ролики этой пачки (batch — [[clipId…]…], старые → новые).
+ * Source videos that are "tired": they were in the previous video (the neighbouring day) or already in 2 videos in 7 days.
+ * Counts both the library (used) and the videos of this batch (batch — [[clipId…]…], oldest → newest).
  */
 export function tiredClips(lib, { history = [], batch = [], now = Date.now(), perWeek = 2 } = {}) {
   const lastId = history.at(-1)?.id ?? null;
@@ -99,12 +99,12 @@ export function tiredClips(lib, { history = [], batch = [], now = Date.now(), pe
   return tired;
 }
 const has = (x, ...labels) => labels.some((l) => x.s.labels.includes(l));
-/** Живость плана для первой секунды: движение плюс самый сильный пик движения. */
+/** Liveliness of a plan for the first second: motion plus the strongest motion peak. */
 const live = (x) => (x.s.motion ?? 0) + Math.max(0, ...(x.s.peaks ?? []).filter((p) => p.kind === 'move').map((p) => p.score ?? 0));
-/** Смазанный прыжок с писком: зрители видят в нём падение или испуг — такие куски в конец очереди. */
+/** A blurred jump with a squeak: viewers see a fall or fright in it — such pieces go to the end of the queue. */
 const blurry = (x) => (x.s.sharp ?? 1) < 0.4 && has(x, 'прыжок', 'писк');
 const blurLast = (xs) => [...xs.filter((x) => !blurry(x)), ...xs.filter(blurry)];
-/** Крючок первой секунды: живое и резкое движение (смазанное с пальцем у объектива — не крючок). */
+/** Hook of the first second: lively, sharp motion (blurred with a finger on the lens is not a hook). */
 const hook = (x) => live(x) * (x.s.sharp ?? 0.5);
 function* perms(xs) {
   if (xs.length <= 1) { yield xs; return; }
@@ -112,8 +112,8 @@ function* perms(xs) {
 }
 const glued = (xs) => xs.some((x, k) => k > 0 && xs[k - 1].c.id === x.c.id);
 /**
- * Переставить так, чтобы куски одного видео не шли подряд («один исходник два раза подряд» зрители замечают сразу).
- * Первый (крючок) и последний (лучший) остаются на местах, если можно; середина — ближе к исходному порядку.
+ * Rearrange so that pieces of one video do not run one after another ("one source twice in a row" viewers notice at once).
+ * The first (hook) and the last (best) stay in place if possible; the middle — closer to the original order.
  */
 function unglue(xs) {
   if (!glued(xs) || xs.length < 3) return xs;
@@ -122,7 +122,7 @@ function unglue(xs) {
   return xs;
 }
 
-/** Видео каждого прошлого ролика вида kind: ролики этой пачки и недельной истории (по c.used). [Set(clipId)…] */
+/** Videos of each past video of kind `kind`: the videos of this batch and of the weekly history (by c.used). [Set(clipId)…] */
 function sameKindClips(lib, kind, { history = [], out = [], now = Date.now() } = {}) {
   const sets = out.filter((s) => s.kind === kind).map((s) => new Set(s.pieces.map((p) => p.clip)));
   const ids = new Set(history.filter((h) => h.kind === kind && h.id && now - h.at < 7 * DAY).map((h) => h.id));
@@ -142,7 +142,7 @@ const repeats = (b, sets) => {
   return sets.some((s) => [...mine].filter((id) => s.has(id)).length >= 2);
 };
 
-/** Часть суток плана — только по настоящему времени съёмки. Без даты (сток, пересланное) — null: не угадываем. */
+/** Time of day of a plan — only from the real shooting time. Without a date (stock, forwarded) — null: we do not guess. */
 export function partOfDay(c) {
   if (c.created) {
     const h = new Date(c.created).getHours();
@@ -156,13 +156,13 @@ export function partOfDay(c) {
 
 const BUILD = {
   top5(pool) {
-    // не больше двух моментов с одного клипа, если хватает других
-    // топ-5 — про живые моменты: сначала подвижные планы, спокойные — только если не хватает (они нужны «спокойным моментам»)
+    // no more than two moments from one clip, if there are enough others
+    // the top 5 is about lively moments: moving plans first, calm ones only if there are not enough (they are needed for "calm moments")
     const all = pool.filter((x) => x.s.len >= 1.5);
     const calmOnly = (x) => has(x, 'спокойно', 'спит', 'умывается') && !has(x, 'движение');
-    // смазанные прыжки с писком — в самый конец: зрители видят в них падение
+    // blurred jumps with a squeak — at the very end: viewers see a fall in them
     const ok = blurLast([...all.filter((x) => !calmOnly(x)), ...all.filter(calmOnly)]);
-    // сначала по одному куску с видео, потом по два, потом любые; видео прошлого топ-5 (old) — только когда новых не хватает
+    // first one piece per video, then two, then any; videos of the past top 5 (old) — only when there are not enough new ones
     const per = {}; const pick = [];
     for (const [cap, fresh] of [[1, true], [2, true], [2, false], [Infinity, false]]) {
       for (const x of ok) if (pick.length < 5 && !pick.includes(x) && !(fresh && x.old) && (per[x.c.id] ?? 0) < cap) { pick.push(x); per[x.c.id] = (per[x.c.id] ?? 0) + 1; }
@@ -170,18 +170,18 @@ const BUILD = {
     pick.sort((a, b) => ok.indexOf(a) - ok.indexOf(b));
     if (pick.length < 5) return null;
     let show = pick.reverse();
-    // первый показ (№5) — дневной кусок, если он есть среди №4…№2: ролик не открывается серым ИК-куском; №1 (лучший) не трогаем
+    // the first showing (No. 5) — a daytime piece, if one is among No. 4…No. 2: the video does not open with a gray IR piece; No. 1 (the best) is left alone
     const ir = (x) => has(x, 'ИК') || Boolean(x.c.night);
-    // крючок: первая секунда — самое живое движение среди №5…№2 (дневной кусок важнее ИК)
+    // hook: the first second — the most lively motion among No. 5…No. 2 (a daytime piece matters more than IR)
     const head = show.slice(0, 4);
-    // крючок — живое и резкое (смазанное с пальцем у объектива не цепляет), не смазанный прыжок
+    // hook — lively and sharp (blurred with a finger on the lens does not hook), not a blurred jump
     const day = head.some((x) => !ir(x)) ? head.filter((x) => !ir(x)) : head;
     const cand = day.some((x) => !blurry(x)) ? day.filter((x) => !blurry(x)) : day;
     const best = cand.reduce((a, x) => (hook(x) > hook(a) ? x : a), cand[0]);
     show.unshift(...show.splice(show.indexOf(best), 1));
     show = unglue(show);
-    // крючок — 2 с, остальные по 3 с; короткие планы добираются длинными (до 5 с), чтобы ролик был не короче SERIES_MIN;
-    // крючок растягивается последним
+    // the hook is 2 s, the others 3 s each; short plans are filled with longer ones (up to 5 s) so that the video is not shorter than SERIES_MIN;
+    // the hook is stretched last
     const lens = show.map((x, k) => (k === 0 ? 2 : 3));
     const room = (k) => Math.min(5, show[k].s.len) - lens[k];
     const total = () => show.reduce((t, x, k) => t + Math.min(lens[k], x.s.len), 0);
@@ -198,7 +198,7 @@ const BUILD = {
     return { pieces: parts.map((p) => pieceAround(byPart[p].c, byPart[p].i, 3.5, p)), parts: parts.map((p) => PARTS_EN[p]) };
   },
   beforeAfter(pool) {
-    // только один клип (тот же зверёк, то же место), «потом» — позже и заметно подвижнее (в 3 раза и не меньше «активно»)
+    // only one clip (the same pet, the same place), "then" — later and noticeably more active (3 times and not less than "active")
     const before = pool.filter((x) => has(x, 'спит', 'спокойно', 'прячется') && !has(x, 'движение'));
     for (const b of before) {
       const a = pool.find((x) => x.c.id === b.c.id && x.i > b.i && (x.s.motion ?? 0) >= Math.max(SHOT.active, 3 * (b.s.motion ?? 0)));
@@ -212,24 +212,24 @@ const BUILD = {
     return null;
   },
   calm(pool) {
-    // спокойные планы: зверёк отдыхает, умывается, ест; разные клипы, если есть
+    // calm plans: the pet rests, washes, eats; different clips, if there are any
     const ok = pool.filter((x) => has(x, 'спокойно', 'спит', 'умывается') && !has(x, 'прыжок', 'писк') && x.s.len >= 2);
     const pick = [];
     for (const x of ok) if (pick.length < 3 && !pick.some((y) => y.c.id === x.c.id)) pick.push(x);
     for (const x of ok) if (pick.length < 3 && !pick.includes(x)) pick.push(x);
-    // два спокойных плана — уже ролик (по 6 с), три — по 4 с
+    // two calm plans already make a video (6 s each), three — 4 s each
     if (pick.length < 2) return null;
     const L = pick.length === 2 ? 6 : 4;
     return { pieces: pick.map((x) => pieceAround(x.c, x.i, L, null)) };
   },
   fails(pool) {
-    // грубо: резкий прыжок (сильный пик движения) — «возможно фейл», решает человек
+    // roughly: a sharp jump (a strong motion peak) — "possibly a fail", the person decides
     const jumps = pool.filter((x) => has(x, 'движение', 'прыжок') && x.s.peaks.some((p) => p.kind === 'move' && p.score >= 0.6)).slice(0, 3);
     if (jumps.length < 2) return null;
     return { pieces: jumps.map((x, k) => pieceAround(x.c, x.i, 3, k === 0 ? 'Ой!' : null)), needsReview: 'резкие прыжки — убедитесь, что зверёк не ударился и не испугался' };
   },
   asmr(pool) {
-    // ASMR — только когда слышно, что зверёк ест (метка «ест» или так сказал разбор Claude), а не просто тихо
+    // ASMR — only when you can hear the pet eating (the "eats" label or Claude's analysis says so), not just quiet
     const quiet = pool.filter((x) => x.c.hasAudio && has(x, 'asmr?') && !has(x, 'без звука') && (x.c.vision?.asmr || has(x, 'ест'))).slice(0, 3);
     if (!quiet.length) return null;
     const pieces = quiet.map((x) => pieceAround(x.c, x.i, 6, null));
@@ -242,27 +242,27 @@ const BUILD = {
     const theme = Object.keys(counts).filter((l) => counts[l] >= 3).sort((a, b) => counts[b] - counts[a])[0];
     if (!theme) return null;
     const ok = blurLast(pool.filter((x) => x.s.labels.includes(theme)));
-    // ролик не короче SERIES_MIN секунд: по 5 с на момент, а не хватает — четвёртый момент той же темы
+    // the video is no shorter than SERIES_MIN seconds: 5 s per moment, and if it is not enough — a fourth moment of the same theme
     const fill = (from) => {
       const pick = [];
       for (const x of from) if (pick.length < 3 || (pick.length < 4 && pick.reduce((t, y) => t + Math.min(5, y.s.len), 0) < SERIES_MIN)) pick.push(x);
       return pick;
     };
-    // «Эпизод N» — только когда это правда один эпизод: все куски из одного видео и по порядку съёмки
+    // "Episode N" — only when it really is one episode: all pieces from one video and in shooting order
     const per = {};
-    // смазанные прыжки с писком эпизодом не считаются: зрители видят в них падение
+    // blurred jumps with a squeak do not count as an episode: viewers see a fall in them
     for (const x of ok) if (!blurry(x)) (per[x.c.id] ??= []).push(x);
     const one = Object.values(per).filter((xs) => xs.length >= 3).sort((p, q) => q.length - p.length)[0];
     if (one) {
       const pick = fill(one).sort((p, q) => p.i - q.i);
       return {
-        // «Эпизод N» держится весь ролик: за секунду его не успевают прочесть
+        // "Episode N" stays for the whole video: it cannot be read in a second
         pieces: pick.map((x, k) => (k === 0 ? { ...pieceAround(x.c, x.i, 5, `Эпизод ${episode}`), hold: true } : pieceAround(x.c, x.i, 5, null))),
         theme,
         title: { ru: `Зверёк ${THEME[theme][0]} · эпизод ${episode}`, en: `Little animal ${THEME[theme][1]} · episode ${episode}` },
       };
     }
-    // иначе — подборка одной темы из разных видео, без «эпизода»; первым — самый живой кусок
+    // otherwise — a selection of one theme from different videos, without an "episode"; the most lively piece goes first
     const spread = [];
     for (const x of ok) if (spread.length < 3 && !spread.some((y) => y.c.id === x.c.id)) spread.push(x);
     for (const x of ok) if (!spread.includes(x)) spread.push(x);
@@ -278,18 +278,18 @@ const BUILD = {
   },
 };
 
-/** Проверка ворот для вида сюжета. null — можно, иначе причина. */
+/** Gate check for a story kind. null — allowed, otherwise the reason. */
 export function gateReason(kind, history, now = Date.now()) {
   const last = history.at(-1);
   if (last && last.kind === kind) return 'такой же вид был последним';
   const week = history.filter((h) => now - h.at < 7 * DAY);
   const kinds = new Set(week.map((h) => h.kind));
-  // если за неделю уже 4 ролика и меньше 3 видов — новый ролик обязан быть нового вида
+  // if there are already 4 videos in a week and fewer than 3 kinds — a new video must be of a new kind
   if (week.length >= 4 && kinds.size < 3 && kinds.has(kind)) return 'за неделю мало разных видов';
   return null;
 }
 
-/** Порядок видов на сегодня: давно не было — раньше. */
+/** Order of kinds for today: the ones not seen for a long time go first. */
 export function kindOrder(history, now = Date.now()) {
   const week = history.filter((h) => now - h.at < 7 * DAY);
   const cnt = (k) => week.filter((h) => h.kind === k).length;
@@ -298,8 +298,8 @@ export function kindOrder(history, now = Date.now()) {
 }
 
 /**
- * Новые сюжеты на сегодня. history — [{kind, at}] уже собранных/выложенных роликов (старые → новые).
- * Возвращает до `count` сюжетов с разными планами; в библиотеке ничего не меняет (см. commit).
+ * New stories for today. history — [{kind, at}] of already assembled/published videos (oldest → newest).
+ * Returns up to `count` stories with different plans; changes nothing in the library (see commit).
  */
 export function makeStories(lib, { history = [], now = Date.now(), count = 3, focus = null } = {}) {
   const taken = new Set();
@@ -307,27 +307,27 @@ export function makeStories(lib, { history = [], now = Date.now(), count = 3, fo
   const hist = [...history];
   for (let round = 0; round < count; round++) {
     let made = null;
-    // сначала — без «уставших» исходных видео (были вчера или уже дважды за неделю);
-    // не вышло — только без видео соседнего ролика; и лишь в крайнем случае — из всех
+    // first — without "tired" source videos (used yesterday or already twice in a week);
+    // if that fails — only without the videos of a neighbouring video; and only as a last resort — from all of them
     const batch = out.map((s) => [...new Set(s.pieces.map((p) => p.clip))]);
     const tired = tiredClips(lib, { history, batch, now });
     const near = tiredClips(lib, { history, batch, now, perWeek: Infinity });
-    // запасные ступени — только для маленькой библиотеки (1–2 видео): иначе лучше меньше роликов, чем одно видео три раза за неделю
+    // fallback steps — only for a small library (1–2 videos): otherwise it is better to have fewer videos than one video three times in a week
     const small = lib.all().length < 3;
     const tiers = (small ? [tired, near, null] : [tired]).filter((t, k, a) => k === 0 || (t?.size ?? 0) < (a[k - 1]?.size ?? 0));
     for (const skip of tiers) {
       if (made) break;
       for (const kind of kindOrder(hist, now)) {
         if (gateReason(kind, hist, now)) continue;
-        // повтор: видео прошлых роликов этого вида (в пачке и за неделю) — в конец очереди;
-        // если ролик всё равно делит с одним из них ≥ 2 видео, этот вид сегодня не собираем
+        // repeat: videos of past videos of this kind (in the batch and in the week) — to the end of the queue;
+        // if the video still shares 2 or more videos with one of them, this kind is not assembled today
         const before = sameKindClips(lib, kind, { history, out, now });
         const pool = backOf(freeShots(lib, taken, skip, focus), before);
         const episode = history.filter((h) => h.kind === 'series').length + out.filter((s) => s.kind === 'series').length + 1;
         const b = BUILD[kind](pool, { episode });
         if (!b) continue;
         if (!small && repeats(b, before)) continue;
-        // резкий прыжок или писк могут значить испуг — такой ролик человек смотрит перед выкладкой
+        // a sharp jump or a squeak may mean fright — the person watches such a video before publishing
         const risky = b.pieces.some((p) => { const x = pool.find((y) => y.c.id === p.clip && y.i === p.shot); return x && has(x, 'прыжок', 'писк'); });
         if (risky && !b.needsReview) b.needsReview = 'есть резкий прыжок или писк — убедитесь, что зверёк не испугался';
         const n = history.filter((h) => h.kind === kind).length + out.filter((s) => s.kind === kind).length;
@@ -340,8 +340,8 @@ export function makeStories(lib, { history = [], now = Date.now(), count = 3, fo
     out.push(made);
     hist.push({ kind: made.kind, at: now });
   }
-  // человек только что отметил видео «Это мой зверёк», а ворота разнообразия закрыли все виды, что из него
-  // собираются: один ролик с ним всё равно собираем — отметка важнее правила «не повторять вид»
+  // the person has just marked a video "This is my pet", and the variety gates closed all the kinds it could make
+  // one video with it is still assembled: the mark matters more than the "do not repeat a kind" rule
   const hit = (s) => s.pieces.some((p) => focus.has(p.clip));
   if (focus?.size && out.length < count && !out.some(hit)) {
     const tiers = [tiredClips(lib, { history, batch: out.map((s) => s.pieces.map((p) => p.clip)), now }), null];
@@ -371,7 +371,7 @@ const NEED = {
   series: 'нужно 3 свободных момента с одним занятием',
 };
 
-/** Почему не собраны остальные виды: [{kind, name, why}] — честно, по свободным планам и воротам. */
+/** Why the other kinds were not assembled: [{kind, name, why}] — honestly, by the free plans and the gates. */
 export function whyNotKinds(lib, stories, { history = [], now = Date.now() } = {}) {
   const taken = new Set(stories.flatMap((s) => s.pieces.map(key)));
   const hist = [...history, ...stories.map((s) => ({ kind: s.kind, at: now }))];
@@ -398,7 +398,7 @@ function finish(kind, b, now, n = 0) {
   };
 }
 
-/** Совет к ролику: моменты со временем в готовом ролике, а не в исходнике («резкий прыжок около 0:03»). */
+/** Advice for the video: moments with times in the finished video, not in the source ("sharp jump around 0:03"). */
 export function storyWhy(pieces) {
   const n = pieces.length;
   const word = n % 10 === 1 && n % 100 !== 11 ? 'момент' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'момента' : 'моментов';
@@ -423,7 +423,7 @@ export function storyWhy(pieces) {
   return out.join(', ');
 }
 
-/** Сюжет собран — планы заняты на 7 дней. Возвращает запись для history. */
+/** Story assembled — the plans are occupied for 7 days. Returns a record for history. */
 export function commit(lib, story, at = Date.now()) {
   for (const p of story.pieces) lib.markUsed(p.clip, p.shot, story.id, at);
   return { kind: story.kind, at, id: story.id };

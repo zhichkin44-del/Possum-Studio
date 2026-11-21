@@ -1,9 +1,9 @@
-// Приватность: лица людей, сигареты и руки в ролики не попадают (руку в кадре зрители ругают первой).
-// Кадры (квадраты, покрывающие весь кадр) сравниваются с подписями той же локальной
-// модели CLIP; подписи, проходы и пороги — в clip-labels.json (privacy). Сеть не нужна.
-// Лица крупные — хватает сетки 1 (три квадрата по высоте); сигарета мелкая и мелькает меньше секунды — нужна сетка 2 и шаг 0,5 с.
+// Privacy: people's faces, cigarettes and hands do not get into videos (viewers criticize a hand in frame first).
+// Frames (squares covering the whole frame) are compared with the captions of the same local
+// CLIP model; captions, passes and thresholds are in clip-labels.json (privacy). No network needed.
+// Faces are large — grid 1 is enough (three squares in height); a cigarette is small and flashes for less than a second — it needs grid 2 and a 0.5 s step.
 
-/** Причина в запасе — простыми словами, как у других браков. */
+/** The reason in the reserve — in plain words, like the other defects. */
 export const PRIVATE_WHY = {
   'люди': 'в кадре человек — в сюжеты не берём',
   'сигарета': 'в кадре сигарета — в сюжеты не берём',
@@ -12,7 +12,7 @@ export const PRIVATE_WHY = {
 
 const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
 
-/** Доли групп одного кадра: softmax(scale·cos) по всем подписям, сумма по каждой группе. */
+/** Shares of the groups of one frame: softmax(scale·cos) over all captions, summed per group. */
 function shares(v, P) {
   const z = P.vectors.map((t) => (P.scale ?? 100) * dot(v, t));
   const m = Math.max(...z);
@@ -24,15 +24,15 @@ function shares(v, P) {
 }
 
 /**
- * По каждому моменту — 'люди', 'сигарета' или null. Кропы одного момента (одинаковое t) сводятся
- * по максимуму. Срабатывание короче P.minRun соседних моментов считается шумом. Нет подписей — пусто.
- * P.only — считать только эту группу (доля других групп не мешает и не засчитывается).
- * P.minRunSeen — если в ролике осталась хоть одна серия, повторная проверка с этой (меньшей) длиной:
- * курильщик в кадре уже подтверждён, и одиночный кадр с сигаретой рядом — уже не шум.
- * P.rise — засчитывать только всплеск: доля группы выше своей медианы по ролику хотя бы на rise
- * (зверёк весь ролик в ладони — это не «рука у морды»; рука, влезшая в кадр, — да).
- * P.over — группа засчитывается, только если её доля выше доли каждой из этих групп (минус P.overMargin):
- * сжатый кулак модель путает с сигаретой, но «рукой» он для неё всё равно больше.
+ * For each moment — 'people', 'cigarette' or null. Crops of one moment (same t) are merged
+ * by maximum. A hit shorter than P.minRun neighbouring moments counts as noise. No captions — empty.
+ * P.only — count only this group (the share of other groups does not interfere and is not counted).
+ * P.minRunSeen — if at least one run is left in the video, a repeat check with this (smaller) length:
+ * a smoker in the frame is already confirmed, and a single frame with a cigarette nearby is no longer noise.
+ * P.rise — count only a spike: the group's share is above its own median for the video by at least rise
+ * (the pet held in the palm the whole video is not "a hand at the muzzle"; a hand that gets into the frame is).
+ * P.over — a group counts only if its share is above the share of each of these groups (minus P.overMargin):
+ * the model confuses a clenched fist with a cigarette, but for it the "hand" is still bigger.
  */
 export function privacyHits(frames, P) {
   if (!P?.vectors?.length || !frames?.length) return [];
@@ -68,7 +68,7 @@ export function privacyHits(frames, P) {
   return P.minRunSeen != null && out.some((h) => h.kind) ? keep(P.minRunSeen) : out;
 }
 
-/** Несколько проходов — в один ряд по моменту: попадание любого прохода остаётся. */
+/** Several passes — in one row per moment: a hit from any pass is kept. */
 export function mergeHits(...lists) {
   const by = new Map();
   for (const list of lists) for (const h of list ?? []) {
@@ -79,9 +79,9 @@ export function mergeHits(...lists) {
 }
 
 /**
- * Фильтр приватности поверх кадрового эмбеддера: scan(file) → [{t, kind}]. Каждый проход из
- * labels.passes берёт кадры своей сетки и смотрит только свою группу. Нет модели или подписей —
- * available=false, ролики собираются как раньше, а программа честно говорит, что проверки не было.
+ * Privacy filter on top of the frame embedder: scan(file) → [{t, kind}]. Each pass from
+ * labels.passes takes the frames of its own grid and looks only at its own group. No model or captions —
+ * available=false, videos are assembled as before, and the program honestly says that no check was done.
  */
 export function createPrivacy({ embedder, labels } = {}) {
   const ok = !!(embedder?.available && embedder.embedAt && labels?.vectors?.length);
@@ -112,7 +112,7 @@ export function createPrivacy({ embedder, labels } = {}) {
         const share = hiddenShare(frames.get(key), labels, H);
         hits.hidden = { share: +share.toFixed(3), hidden: share >= (H.share ?? 0.5) };
       }
-      // «зверька держат в руках весь ролик»: из такого видео годится только окно мордочки
+      // "the pet is held in hands the whole video": from such a video only the face window is usable
       const Hd = labels.held;
       if (Hd) {
         const g = Hd.grid ?? m?.grid ?? 1, st = Hd.step ?? m?.step ?? 0.5, key = g + '/' + st;
@@ -126,9 +126,9 @@ export function createPrivacy({ embedder, labels } = {}) {
 }
 
 /**
- * «Зверька не видно»: доля моментов ролика, где подписи «голой руки» (H.labels: рука, кулак, пальцы)
- * вместе набирают не меньше H.threshold. Зверёк зажат в кулаке весь ролик — доля большая; держат
- * в ладони и мордочку видно — около нуля. Кропы одного момента усредняются.
+ * "Pet not visible": the share of video moments where the "bare hand" captions (H.labels: hand, fist, fingers)
+ * together reach at least H.threshold. A pet held in a fist the whole video — a large share; held
+ * in the palm with the muzzle visible — close to zero. Crops of one moment are averaged.
  */
 export function hiddenShare(frames, P, H) {
   const idx = (H?.labels ?? []).map((l) => P?.labels?.indexOf(l)).filter((i) => i >= 0);
@@ -148,10 +148,10 @@ export function hiddenShare(frames, P, H) {
 const unit = (v) => { const n = Math.hypot(...v) || 1; return v.map((x) => x / n); };
 
 /**
- * Окно «мордочки»: самое непохожее на остальной ролик место длиной len секунд (новизна кадра —
- * 1 − cos к среднему виду ролика). Зверька показали крупно — кадр не похож на общий план.
- * Окна с моментами из skip (вырезанная рука, сигарета) не берутся. Пик незаметный (меньше
- * полутора медиан новизны) или ролик ровный — null.
+ * "Muzzle" window: the place most unlike the rest of the video, len seconds long (frame novelty —
+ * 1 − cos to the average look of the video). The pet is shown close up — the frame does not look like a wide shot.
+ * Windows with moments from skip (a cut-out hand, a cigarette) are not taken. A peak that is unnoticeable (less than
+ * one and a half novelty medians) or a flat video — null.
  */
 export function momentWindow(frames, { len = 2, skip = [] } = {}) {
   if (!frames?.length) return null;
@@ -179,10 +179,10 @@ export function momentWindow(frames, { len = 2, skip = [] } = {}) {
 }
 
 /**
- * Планы с попаданием режутся по чистым участкам (не короче minLen): самый длинный остаётся на месте плана,
- * остальные добавляются новыми планами в конец (номера старых планов не сдвигаются). Лучший момент
- * и пики остаются внутри своих кусков. Чистого участка нет — план в запас с причиной. Каждое попадание закрывает
- * ±(step/2 + pad) секунды вокруг своего момента.
+ * Plans with a hit are cut at clean spots (no shorter than minLen): the longest stays in the plan's place,
+ * the others are added as new plans at the end (the numbers of old plans do not shift). The best moment
+ * and the peaks stay inside their pieces. If there is no clean spot — the plan goes to the reserve with a reason. Each hit covers
+ * ±(step/2 + pad) seconds around its moment.
  */
 export function markPrivate(shots, hits, { minLen = 1.5, step = 1, pad = 0 } = {}) {
   const r = { cut: 0, dropped: 0, kinds: [] };

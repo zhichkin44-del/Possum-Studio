@@ -21,7 +21,7 @@ Status: tests are green (see [Tests](#tests)). The first live run with a real Te
 
 - Node.js 20 or newer.
 - FFmpeg and ffprobe on `PATH`, or set the `FFMPEG` and `FFPROBE` variables. On Windows: `winget install Gyan.FFmpeg`.
-- A Telegram account and a bot token from @BotFather (see [docs/BOTFATHER.md](docs/BOTFATHER.md)).
+- A Telegram account and a bot token from @BotFather. In Telegram open @BotFather, send `/newbot`, pick a name and a username ending in `bot`, and copy the token; then run `npm run set-token` and paste it.
 - Optional: an Anthropic or OpenRouter API key for AI texts. Without it the app works with templates.
 - Operating systems: Windows 10/11 (full support, including the desktop app), Linux and macOS (bot and tests).
 
@@ -90,7 +90,7 @@ Other scenarios:
 npm test
 ```
 
-Tests need no internet: the Telegram API is faked, and the montage tests use a real ffmpeg when it is available. Last run on a fresh `npm ci` clone, 2026-11-21: 500 tests, 493 passed, 0 failed, 7 skipped.
+Tests need no internet: the Telegram API is faked, and the montage tests use a real ffmpeg when it is available. Last full run, 2026-11-21: 498 tests, 486 passed, 0 failed, 12 skipped (skipped tests need a local video model or real footage).
 
 ## Project structure
 
@@ -100,8 +100,6 @@ Tests need no internet: the Telegram API is faked, and the montage tests use a r
 - `assets/` — fonts and sound effects with their licences.
 - `scripts/` — token entry (`set-token`), demo, sample post, icon and model fetch.
 - `test/` — automated tests (`node --test`).
-- `docs/` — architecture, plans, bot text samples and layouts (in Russian).
-- `craft/` — notes on fonts, sounds and montage rules.
 
 ## License
 

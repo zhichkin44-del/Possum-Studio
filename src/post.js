@@ -1,4 +1,4 @@
-// Готовый пост: подписи, хештеги и первый комментарий под четыре площадки + проверка качества ролика.
+// Ready post: captions, hashtags and the first comment for four platforms + video quality check.
 export const PLATFORMS = [
   { id: 'yt_ru', label: 'YouTube RU', lang: 'ru' },
   { id: 'yt_en', label: 'YouTube EN', lang: 'en' },
@@ -11,7 +11,7 @@ const TAGS = {
   en: ['#sugarglider', '#nocturnalpet', '#cuteanimals', '#exoticpet', '#petsofinstagram'],
 };
 
-// По 3 варианта на сценарий; вариант берём по номеру ролика, чтобы соседние подписи не повторялись.
+// 3 variants per scenario; the variant is picked by the video number so that neighbouring captions do not repeat.
 const BANK = {
   wake: {
     ru: [(p) => `${p.im} просыпается. Смотри, как медленно он решает, вылезать ли.`, (p) => `Вечер, и ${p.im} открыл глаза.`, (p) => `Первый взгляд ${p.ro} после сна.`],
@@ -91,11 +91,11 @@ const FALLBACK = {
 
 const pick = (arr, n) => arr[((n % arr.length) + arr.length) % arr.length];
 
-/** Подписи для четырёх площадок. n — номер ролика (для ротации вариантов). */
+/** Captions for the four platforms. n — video number (for rotating variants). */
 export function buildCaptions({ task, pet, n = 0 }) {
   const bank = (task && BANK[task.id]) || FALLBACK;
   const ru = pick(bank.ru, n)(pet);
-  const ruTt = pick(bank.ru, n + 1)(pet); // на каждой площадке свой вариант: подписи не дублируются
+  const ruTt = pick(bank.ru, n + 1)(pet); // each platform gets its own variant: captions are not duplicated
   const ruIg = pick(bank.ru, n + 2)(pet);
   const en = pick(bank.en, n)({ ...pet, im: pet.en ?? pet.im });
   const tags = (lang, k, extra = []) => [...TAGS[lang].slice(0, k), ...extra];
@@ -107,7 +107,7 @@ export function buildCaptions({ task, pet, n = 0 }) {
   };
 }
 
-/** Что не так с готовым роликом (пусто — всё хорошо). Лист проверки до выдачи напарнице. */
+/** What is wrong with the finished video (empty means all good). Proof sheet before delivery to the partner. */
 export function qualityIssues(r) {
   const issues = [];
   if (r.duration > 20.5) issues.push(`слишком длинный (${r.duration.toFixed(1)} с, нужно до 20)`);

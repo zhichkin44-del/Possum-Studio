@@ -1,4 +1,4 @@
-// Саша кидает видео боту → три монтажа + совет → кнопки выкладки. Выкладка только по его кнопке и только с confirm.
+// The owner sends a video to the bot → three edits + a tip → publishing buttons. Publishing only by the owner's button and only with confirm.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeWorld, OWNER } from './helpers.js';
@@ -38,7 +38,7 @@ async function ready(studio = fakeStudio()) {
   return { w, studio };
 }
 
-test('видео от Саши → три монтажа, совет и кнопки выкладки', async () => {
+test('video from owner → three edits, advice and publish buttons', async () => {
   const { w, studio } = await ready();
   assert.equal(studio.processed.length, 1);
   assert.match(studio.processed[0], /owner-in/);
@@ -48,14 +48,14 @@ test('видео от Саши → три монтажа, совет и кноп
   assert.match(all, /Совет: выкладывать/);
   assert.match(all, /Ночью без вспышки/);
   assert.deepEqual(w.owner.labels(), ['Выложить YouTube', 'В черновики TikTok', 'Instagram', 'Везде', 'Переделать']);
-  assert.equal(studio.published.length, 0, 'без кнопки ничего не выкладывается');
+  assert.equal(studio.published.length, 0, 'nothing is published without the button');
 });
 
-test('кнопка «Выложить YouTube» → publish с confirm:true и ссылка', async () => {
+test('the "Publish YouTube" button → publish with confirm:true and a link', async () => {
   const { w, studio } = await ready();
   await w.owner.press('Выложить YouTube');
   await w.idle();
-  assert.equal(studio.published.length, 0, 'первое нажатие только спрашивает');
+  assert.equal(studio.published.length, 0, 'the first press only asks');
   assert.match(w.owner.last(), /Точно выложить: YouTube/);
   await w.owner.press('Да, выложить');
   await w.idle();
@@ -63,7 +63,7 @@ test('кнопка «Выложить YouTube» → publish с confirm:true и �
   assert.match(w.owner.last(), /YouTube: выложено — https:\/\/youtube\.com\/shorts\/yt1/);
 });
 
-test('«Везде» → три площадки; Instagram отдаёт шаги для ручной выкладки', async () => {
+test('"Everywhere" → three platforms; Instagram gives steps for manual publishing', async () => {
   const { w, studio } = await ready();
   await w.owner.press('Везде');
   await w.idle();
@@ -77,7 +77,7 @@ test('«Везде» → три площадки; Instagram отдаёт шаг�
   assert.match(last, /1\. Открой Instagram/);
 });
 
-test('ошибка площадки не роняет остальные', async () => {
+test('a platform error does not break the others', async () => {
   const studio = fakeStudio();
   const orig = studio.publish;
   studio.publish = async (p, d, o) => { if (p === 'youtube') throw new Error('нет входа в YouTube'); return orig(p, d, o); };
@@ -91,7 +91,7 @@ test('ошибка площадки не роняет остальные', async
   assert.match(last, /TikTok: в черновиках/);
 });
 
-test('«Отмена» после вопроса — ничего не выложено', async () => {
+test('"Cancel" after the question — nothing is published', async () => {
   const { w, studio } = await ready();
   await w.owner.press('Везде');
   await w.idle();
@@ -101,7 +101,7 @@ test('«Отмена» после вопроса — ничего не выло�
   assert.match(w.owner.last(), /Отменено — ничего не выложено/);
 });
 
-test('двойное «Да» не выкладывает дважды', async () => {
+test('a double "Yes" does not publish twice', async () => {
   const studio = fakeStudio();
   const orig = studio.publish;
   let release;
@@ -118,7 +118,7 @@ test('двойное «Да» не выкладывает дважды', async (
   assert.equal(studio.published.length, 1);
 });
 
-test('напарница не может нажать кнопки выкладки Саши', async () => {
+test("partner cannot press the owner's publish buttons", async () => {
   const { w, studio } = await ready();
   const data = w.tg.to(OWNER).filter((r) => r.buttons).at(-1).buttons.flat().find((b) => b.text === 'Везде').data;
   await w.bot.handleUpdate({ update_id: 9999, callback_query: { id: 'cbx', from: { id: 222 }, message: { message_id: 1, chat: { id: 222 } }, data } });
@@ -126,7 +126,7 @@ test('напарница не может нажать кнопки выклад�
   assert.equal(studio.published.length, 0);
 });
 
-test('без ядра (нет ffmpeg) бот честно говорит, что монтаж недоступен', async () => {
+test('without the core (no ffmpeg) the bot honestly says editing is unavailable', async () => {
   const w = makeWorld();
   await w.register();
   await w.owner.video({ uid: 'own2' });
@@ -134,7 +134,7 @@ test('без ядра (нет ffmpeg) бот честно говорит, что
   assert.equal(w.owner.last(), T.ownerNoStudio.replace(/<[^>]+>/g, ''));
 });
 
-test('монтаж упал → «Переделать» запускает заново', async () => {
+test('editing failed → "Redo" starts over', async () => {
   const studio = fakeStudio({ processFails: 1 });
   studio.processFails = 1;
   const { w } = await ready(studio);
@@ -146,7 +146,7 @@ test('монтаж упал → «Переделать» запускает за
   assert.equal(w.owner.videos().length, 3);
 });
 
-test('слишком большое видео — просьба прислать файлом поменьше, без скачивания', async () => {
+test('video too large — asks to send a smaller file, without downloading', async () => {
   const studio = fakeStudio();
   const w = makeWorld({ studio });
   await w.register();

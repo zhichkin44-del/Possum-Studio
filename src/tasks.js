@@ -1,5 +1,5 @@
-// Задания дня: тексты из docs/texts/partner-messages.md. {имя} → форма имени поссума (config.pet).
-// Правило проекта: никаких лимитов на высоту и прыжки; про еду и жару — только короткая строка в знакомстве.
+// Daily tasks: texts written for the partner. {name} → the possum's name form (config.pet).
+// Project rule: no limits on height or jumps; about food and heat — only a short line in the introduction.
 
 const SAFE_DOORS = 'Окна и двери закрой, других животных убери.';
 const AS_IS = 'Пришли как есть. Не обрезай и не улучшай. Телефон держи стоймя.';
@@ -145,7 +145,7 @@ export const WEEK2 = ['pouch', 'moment', 'flight', 'chase', 'palm', 'name', 'rou
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Полный текст задания (HTML для Telegram). */
+/** Full task text (HTML for Telegram). */
 export function renderTask(task, pet) {
   const out = [`<b>Задание на сегодня: ${esc(task.head(pet))}.</b>`, ''];
   for (const l of task.lines(pet)) out.push(Array.isArray(l) ? `<b>${esc(l[0])}:</b> ${esc(l[1])}` : esc(l));
@@ -154,14 +154,14 @@ export function renderTask(task, pet) {
 }
 export const renderSimple = (task) => task.simple;
 
-/** Следующее задание по плану (до 3-й недели): сначала первая неделя, потом вторая; не снятое переносим. */
+/** Next task according to the plan (up to week 3): first week first, then the second; a missed one is carried over. */
 export function nextPlanned(history) {
   const done = new Set(history.filter((h) => h.status === 'done' && h.id).map((h) => h.id));
   for (const id of [...FIRST_WEEK, ...WEEK2]) if (!done.has(id)) return byId(id);
   return null;
 }
 
-/** Короткое напоминание о перенесённом задании (не повторяем всю карточку). */
+/** Short reminder about a carried-over task (we do not repeat the whole card). */
 export function renderRepeat(task, pet) {
   return `<b>Вчерашнее задание остаётся: ${esc(task.head(pet))}.</b>\n${esc(task.secs)}. Если нужны подробности — нажми «Не поняла задание».`;
 }

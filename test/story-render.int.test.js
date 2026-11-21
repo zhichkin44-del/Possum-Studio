@@ -1,4 +1,4 @@
-// Этап 2, шаг 3, настоящий ffmpeg: три разных клипа → сигналы → библиотека → сюжет с подписями → вертикальный ролик.
+// Stage 2, step 3, real ffmpeg: three different clips → signals → library → story with captions → vertical video.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -44,7 +44,7 @@ async function setup() {
   return { root, base, lib, clips };
 }
 
-test('сюжет из трёх клипов (вертикаль, горизонт без звука, квадрат) → 1080×1920, звук, длительность = сумма', { skip, timeout: 300_000 }, async () => {
+test('story from three clips (vertical, horizontal without sound, square) → 1080×1920, sound, duration = sum', { skip, timeout: 300_000 }, async () => {
   const { root, lib, clips } = await setup();
   assert.deepEqual(clips.map((c) => c.orient), ['vertical', 'horizontal', 'square']);
   assert.deepEqual(clips.map((c) => c.hasAudio), [true, false, true]);
@@ -57,10 +57,10 @@ test('сюжет из трёх клипов (вертикаль, горизон�
   const p = await media.probe(out);
   assert.equal(p.width, 1080); assert.equal(p.height, 1920);
   assert.equal(p.hasAudio, true);
-  assert.ok(Math.abs(p.duration - total) < 0.25, `длительность ${p.duration} ≠ ${total}`);
+  assert.ok(Math.abs(p.duration - total) < 0.25, `duration ${p.duration} ≠ ${total}`);
 });
 
-test('ASMR-сюжет: тихий режим с музыкой — музыка не подмешивается, громкость не поднимается', { skip, timeout: 300_000 }, async () => {
+test('ASMR story: quiet mode with music — music is not mixed in, volume is not raised', { skip, timeout: 300_000 }, async () => {
   const { root, lib, clips } = await setup();
   const music = await ensureMusic(join(root, 'Музыка'), media);
   const story = { id: 'asmr-test', kind: 'asmr', pieces: [pieceAround(clips[0], 0, 3), pieceAround(clips[2], 0, 3)], quiet: true };
@@ -71,7 +71,7 @@ test('ASMR-сюжет: тихий режим с музыкой — музыка 
   assert.ok(Math.abs(p.duration - 6) < 0.25, String(p.duration));
 });
 
-test('лист 3×3 для Haiku собирается из настоящего клипа', { skip, timeout: 120_000 }, async () => {
+test('a 3×3 sheet for Haiku is assembled from a real clip', { skip, timeout: 120_000 }, async () => {
   const { root, lib, clips } = await setup();
   const src = lib.realPath(clips[1]);
   const r = await makeSheet({ src, clip: clips[1], out: join(root, 'sheets', 's.jpg'), media });
@@ -80,7 +80,7 @@ test('лист 3×3 для Haiku собирается из настоящего 
   assert.equal(p.width, 1152); assert.equal(p.height, 648);
 });
 
-test('исходник пропал — понятная ошибка, ffmpeg не запускается', { skip }, async () => {
+test('source is missing — clear error, ffmpeg is not started', { skip }, async () => {
   const { root, lib, clips } = await setup();
   const story = { pieces: [{ clip: 'нет-такого', shot: 0, from: 0, len: 2 }, pieceAround(clips[0], 0, 2)] };
   await assert.rejects(renderStory({ story, lib, out: join(root, 'x.mp4'), workDir: join(root, 'w3'), media }), /Нет исходника/);

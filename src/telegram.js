@@ -1,4 +1,4 @@
-// Тонкий клиент Telegram Bot API на fetch, без зависимостей. Токен — только в замыкании: нигде не логируется и не попадает в ошибки.
+// Thin Telegram Bot API client on fetch, no dependencies. The token lives only in a closure: it is never logged and never ends up in errors.
 import { createWriteStream, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
@@ -9,7 +9,7 @@ import { basename } from 'node:path';
 const redact = (s, token) => String(s).split(token).join('***');
 
 export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://api.telegram.org' }) {
-  if (!token) throw new Error('Нет токена бота. Запусти: npm run set-token');
+  if (!token) throw new Error('No bot token. Run: npm run set-token');
   const url = (m) => `${apiBase}/bot${token}/${m}`;
 
   async function call(method, params = {}, { timeoutMs = 40_000 } = {}) {
@@ -26,7 +26,7 @@ export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://ap
       return body.result;
     } catch (e) {
       const out = new Error(redact(e.message, token));
-      out.code = e.code; out.retryAfter = e.retryAfter; // код ответа (например 409) не теряем
+      out.code = e.code; out.retryAfter = e.retryAfter; // keep the response code (e.g. 409)
       throw out;
     } finally { clearTimeout(timer); }
   }
@@ -50,14 +50,14 @@ export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://ap
   return {
     getMe: () => call('getMe'),
     deleteWebhook: ({ dropPending = false } = {}) => call('deleteWebhook', { drop_pending_updates: dropPending }),
-    // chatId — меню только для этого чата (Саши); без него — меню по умолчанию. Пустой список убирает старое меню.
+    // chatId — the menu only for this chat (The owner's); without it, the default menu. An empty list removes the old menu.
     setMyCommands: (commands, { chatId } = {}) => call('setMyCommands', { commands, ...(chatId ? { scope: { type: 'chat', chat_id: chatId } } : {}) }),
     getUpdates: (offset, timeout = 30) => call('getUpdates', { offset, timeout, allowed_updates: ['message', 'callback_query'] }, { timeoutMs: (timeout + 15) * 1000 }),
     async sendMessage(chat, text, opts = {}) {
       try {
         return await call('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: keyboard(opts.buttons) });
       } catch (e) {
-        // сломанная разметка (например, «<» из текста ошибки) не должна терять сообщение
+        // broken markup (e.g. "<" from an error text) must not lose the message
         if (!/can't parse entities|parse/i.test(e.message)) throw e;
         const plain = String(text).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
         return call('sendMessage', { chat_id: chat, text: plain, disable_web_page_preview: true, reply_markup: keyboard(opts.buttons) });
@@ -78,7 +78,7 @@ export function createTelegram({ token, fetchImpl = fetch, apiBase = 'https://ap
         await pipeline(Readable.fromWeb(res.body), createWriteStream(dest), { signal: ctrl.signal });
         return dest;
       } catch (e) {
-        throw new Error(redact(ctrl.signal.aborted ? `Telegram download: таймаут ${Math.round(timeoutMs / 1000)} с` : e.message, token));
+        throw new Error(redact(ctrl.signal.aborted ? `Telegram download: timeout ${Math.round(timeoutMs / 1000)} s` : e.message, token));
       } finally { clearTimeout(timer); }
     },
   };

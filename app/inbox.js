@@ -1,6 +1,6 @@
-// Папка «Входящие» → очередь → монтаж по одному ролику или пачкой (batch: продюсер разбирает всё сразу). Без Electron: тестируется обычным node --test.
-// Файл берётся в работу, когда размер и время изменения не менялись stableMs (по умолчанию 15 с) — докопирован.
-// Состояние пишется атомарно (tmp → rename); испорченный файл состояния сохраняется как .bak, а не теряется молча.
+// "Inbox" folder → queue → editing one video at a time or in a batch (batch: the producer analyses everything at once). No Electron: tested with plain node --test.
+// A file is taken into work when its size and modification time have not changed for stableMs (15 s by default) — it has finished copying.
+// The state is written atomically (tmp → rename); a corrupted state file is kept as .bak, not silently lost.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join } from 'node:path';
@@ -10,20 +10,20 @@ export const VIDEO_EXT = new Set(['.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm
 export function createInbox({ inDir, statePath, studio, onChange = () => {}, stableMs = 15_000, now = Date.now, batch = null, onBatch = () => {} }) {
   mkdirSync(inDir, { recursive: true });
   let jobs = [];
-  let last = null; // итог последней пачки: решения для экрана «Календарь»
+  let last = null; // result of the last batch: decisions for the "Calendar" screen
   if (existsSync(statePath)) {
     try { const st = JSON.parse(readFileSync(statePath, 'utf8')); jobs = st.jobs ?? []; last = st.last ?? null; }
-    catch { try { copyFileSync(statePath, `${statePath}.bak`); } catch { /* нечего сохранить */ } jobs = []; }
+    catch { try { copyFileSync(statePath, `${statePath}.bak`); } catch { /* nothing to keep */ } jobs = []; }
   }
-  const seen = new Map(); // имя → { size, mtime, since } с прошлой проверки
+  const seen = new Map(); // name → { size, mtime, since } from the previous check
   const queue = [];
   let busy = null;
   let waiters = [];
 
   const list = () => jobs.map((j) => ({ ...j })).reverse();
-  // файлы, что ещё докопируются, видны сразу — иначе первые 15 с «Входящие» пишут «Пока пусто»
+  // files that are still copying are visible at once — otherwise for the first 15 s "Inbox" would say "Empty for now"
   const copying = () => [...seen.keys()].map((name) => ({ id: `copy:${name}`, name, status: 'copying', step: 'Ждём, пока файл докопируется' }));
-  const changed = () => { try { onChange([...copying(), ...list()]); } catch { /* окно закрыто */ } };
+  const changed = () => { try { onChange([...copying(), ...list()]); } catch { /* window closed */ } };
   function persist() {
     mkdirSync(dirname(statePath), { recursive: true });
     const tmp = `${statePath}.tmp`;
@@ -39,7 +39,7 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
   function scan() {
     let files = [];
     try { files = readdirSync(inDir); } catch { return; }
-    for (const name of seen.keys()) if (!files.includes(name)) seen.delete(name); // убрали из папки
+    for (const name of seen.keys()) if (!files.includes(name)) seen.delete(name); // removed from the folder
     for (const name of files) {
       if (!VIDEO_EXT.has(extname(name).toLowerCase())) continue;
       const src = join(inDir, name);
@@ -62,7 +62,7 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
     pump();
   }
 
-  /** После перезапуска: недоделанное — снова в очередь. */
+  /** After a restart: unfinished work goes back into the queue. */
   function resume() {
     for (const j of jobs) if (j.status === 'waiting' || j.status === 'working') enqueue(j);
     persist(); changed(); pump();
@@ -78,8 +78,8 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
     };
   };
   /**
-   * Итог шага той же пачки (эталон, отметка «где мой зверёк»): ролики прошлых шагов не теряются,
-   * пока пачка ждала решения человека. Отброшенные видео получают во «Входящих» статус «не взято» с причиной.
+   * The result of a step of the same batch (reference, "where my pet is" mark): videos from past steps are not lost,
+   * while the batch was waiting for the person's decision. Discarded videos get the status "not taken" with a reason in "Inbox".
    */
   function setLast(res) {
     const pending = (last?.decisions ?? []).some((d) => d.type === 'reference' || d.type === 'confirm');
@@ -92,13 +92,13 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
     return last;
   }
 
-  /** Пачка: всё, что в очереди, уходит в batch(files, onProgress) одним заходом. */
+  /** Batch: everything in the queue goes into batch(files, onProgress) in one pass. */
   async function pumpBatch() {
     const group = queue.splice(0).map((id) => jobs.find((j) => j.id === id)).filter(Boolean);
     if (!group.length) return pump();
     busy = group;
     for (const j of group) {
-      try { const st = statSync(j.src); j.key = `${j.name}|${st.size}|${Math.round(st.mtimeMs)}`; } catch { /* нет файла — скажет разбор */ }
+      try { const st = statSync(j.src); j.key = `${j.name}|${st.size}|${Math.round(st.mtimeMs)}`; } catch { /* no file — the analysis will report it */ }
       j.status = 'working'; j.step = 'Жду разбора';
     }
     persist(); changed();
@@ -121,7 +121,7 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
         delete j.eta;
       }
       last = toLast(res, group.length);
-      try { onBatch(res); } catch { /* окно закрыто */ }
+      try { onBatch(res); } catch { /* window closed */ }
     } catch (e) {
       for (const j of group) { Object.assign(j, { status: 'error', step: 'Ошибка', error: String(e?.message ?? e).slice(0, 500) }); delete j.eta; }
     } finally {
@@ -138,8 +138,8 @@ export function createInbox({ inDir, statePath, studio, onChange = () => {}, sta
     const job = jobs.find((j) => j.id === id);
     if (!job) return pump();
     busy = job;
-    // ключ — по тому файлу, что реально монтируем (после перезапуска запись могла устареть)
-    try { const st = statSync(job.src); job.key = `${job.name}|${st.size}|${Math.round(st.mtimeMs)}`; } catch { /* файла нет — studio скажет */ }
+    // the key is by the file we actually edit (after a restart the record may be stale)
+    try { const st = statSync(job.src); job.key = `${job.name}|${st.size}|${Math.round(st.mtimeMs)}`; } catch { /* no file — studio will report it */ }
     job.status = 'working'; job.step = 'Начинаю';
     persist(); changed();
     try {

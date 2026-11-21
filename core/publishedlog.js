@@ -1,4 +1,4 @@
-// Журнал публикаций: одно и то же видео на одну площадку дважды не уходит.
+// Publication log: the same video does not go to one platform twice.
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 

@@ -1,7 +1,7 @@
-// Признаки одного кадра 64×96 (RGB): яркость, насыщенность (ИК ≈ серое), резкость (энергия градиента), dHash 64 бита.
+// Features of one 64×96 frame (RGB): brightness, saturation (IR ≈ gray), sharpness (gradient energy), 64-bit dHash.
 export const FW = 64, FH = 96;
 
-/** rgb — Buffer/Uint8Array, offset — начало кадра, w×h×3 байт. */
+/** rgb — Buffer/Uint8Array, offset — start of the frame, w×h×3 bytes. */
 export function frameStats(rgb, offset = 0, w = FW, h = FH) {
   const n = w * h;
   const gray = new Float32Array(n);
@@ -13,7 +13,7 @@ export function frameStats(rgb, offset = 0, w = FW, h = FH) {
     sat += Math.max(r, g, b) - Math.min(r, g, b);
   }
   const luma = sum / n;
-  // резкость: средний |dx|+|dy|, делённый на контраст кадра — чтобы тёмное не считалось размытым
+  // sharpness: mean |dx|+|dy| divided by the frame contrast — so that dark frames are not counted as blurry
   let grad = 0, dev = 0;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -28,7 +28,7 @@ export function frameStats(rgb, offset = 0, w = FW, h = FH) {
   return { luma, sat: sat / n, sharp, hash: dhash(gray, w, h) };
 }
 
-/** dHash: кадр → 9×8 средних блоков, бит = левее ярче правого. 16 hex-символов. */
+/** dHash: frame → 9×8 mean blocks, bit = left is brighter than right. 16 hex characters. */
 export function dhash(gray, w = FW, h = FH) {
   const cells = new Float64Array(9 * 8);
   for (let cy = 0; cy < 8; cy++) {
@@ -50,7 +50,7 @@ export function dhash(gray, w = FW, h = FH) {
 }
 
 const POP = Array.from({ length: 16 }, (_, i) => (i & 1) + ((i >> 1) & 1) + ((i >> 2) & 1) + ((i >> 3) & 1));
-/** Расстояние Хэмминга между двумя dHash (hex). */
+/** Hamming distance between two dHash values (hex). */
 export function hamming(a, b) {
   if (!a || !b || a.length !== b.length) return 64;
   let d = 0;

@@ -1,5 +1,5 @@
-// Связка окна, студии и пары «Монтажёр ↔ напарница». Без Electron: тестируется обычным node --test.
-// Напарница с готовой парой ничего не монтирует — отправляет видео монтажёру; монтажёр монтирует и шлёт ей готовые ролики.
+// Glue between the window, the studio and the pair "The editor ↔ partner". No Electron: tested with plain node --test.
+// The partner with a ready pair edits nothing — she sends videos to the editor; the editor edits and sends her the finished videos.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -9,7 +9,7 @@ export function createHub({ studio, inDir, root, send = () => {} }) {
   };
   const role = () => { try { return studio.pairing()?.status().role ?? null; } catch { return null; } };
 
-  /** Пачка из «Входящих». */
+  /** A batch from "Inbox". */
   async function batch(files, onProgress = () => {}) {
     const p = pair();
     if (p && role() === 'partner') {
@@ -25,7 +25,7 @@ export function createHub({ studio, inDir, root, send = () => {} }) {
     return studio.runBatch(files, (x) => { onProgress(x); send('progress', x); });
   }
 
-  /** После пачки у монтажёра: готовые ролики и тексты уходят напарнице. */
+  /** After a batch on the editor's side: the finished videos and texts go to the partner. */
   async function afterBatch(res) {
     const p = pair();
     if (!p || role() !== 'owner' || res?.sent) return [];
@@ -40,7 +40,7 @@ export function createHub({ studio, inDir, root, send = () => {} }) {
     return out;
   }
 
-  /** При каждом скане: забрать, что прислала другая сторона. */
+  /** On every scan: pick up what the other side sent. */
   async function poll() {
     const p = pair();
     if (!p) return { got: [], waiting: 0 };

@@ -1,4 +1,4 @@
-// Поддельный Electron safeStorage для тестов: обратимо «шифрует», открытого текста в результате нет.
+// Fake Electron safeStorage for tests: "encrypts" reversibly, there is no plain text in the result.
 export function fakeVault({ available = true } = {}) {
   const calls = { enc: 0, dec: 0 };
   return {

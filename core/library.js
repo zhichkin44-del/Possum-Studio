@@ -1,13 +1,13 @@
-// Библиотека всех клипов: library.json (атомарно, с .bak), планы, метки, звёзды, где использован.
-// Полные пути пользователя в library.json не пишем: внутри baseDir — относительный путь, снаружи — только имя,
-// а настоящий путь лежит в соседнем library.paths.local.json (он никогда не уходит в общую папку).
+// Library of all clips: library.json (atomic, with .bak), plans, labels, stars, where each one was used.
+// We do not write the user's full paths into library.json: inside baseDir it is a relative path, outside only the name,
+// and the real path lives in the neighbouring library.paths.local.json (it never leaves the local machine).
 import { createHash } from 'node:crypto';
 import { openSync, readSync, closeSync, fstatSync, existsSync, readFileSync, writeFileSync, renameSync, copyFileSync, mkdirSync } from 'node:fs';
 import { dirname, relative, resolve, basename, isAbsolute, join } from 'node:path';
 import { summarizeClip, markDuplicates, shotPrint } from './shots.js';
 import { markPrivate } from './privacy.js';
 
-/** id клипа: размер + первый 1 МБ + последние 64 КБ. Копия того же файла под другим именем — тот же id. */
+/** Clip id: size + first 1 MB + last 64 KB. A copy of the same file under another name has the same id. */
 export function fileId(file) {
   const fd = openSync(file, 'r');
   try {
@@ -23,7 +23,7 @@ export function fileId(file) {
   } finally { closeSync(fd); }
 }
 
-// слово запроса → какие метки подходят (метки из сигналов и из разбора Haiku)
+// request word → which labels fit (labels from the signals and from the Haiku analysis)
 const SYN = {
   'прыжок': ['движение', 'прыжок'], 'прыгает': ['движение', 'прыжок'], 'бегает': ['движение'], 'движение': ['движение', 'прыжок', 'играет', 'лазает'],
   'играет': ['играет', 'движение'], 'лазает': ['лазает', 'движение'],
@@ -33,20 +33,20 @@ const SYN = {
   'спит': ['спит', 'спокойно'], 'спокойно': ['спокойно', 'спит'], 'умывается': ['умывается'], 'прячется': ['прячется'],
   'камера': ['смотрит в камеру'], 'смотрит': ['смотрит в камеру'],
 };
-export const BLOCK = ['падение', 'стресс']; // такие планы в сюжеты не идут никогда
-// почему кусок не подошёл — простыми словами (первое совпадение)
+export const BLOCK = ['падение', 'стресс']; // such plans never go into stories
+// why a piece did not fit — in plain words (first match)
 const SPARE_WHY = [['чёрный', 'темно'], ['слишком темно', 'темно'], ['дубль', 'одинаковые видео'], ['размыто', 'размыто'], ['пересвет', 'пересвет'], ['коротко', 'слишком короткий кусок'], ['нет зверька', 'зверька не видно'], ['стресс', 'зверёк мог испугаться'], ['падение', 'зверёк мог испугаться'], ['люди', 'в кадре человек'], ['сигарета', 'в кадре сигарета'], ['рука', 'в кадре рука']];
 
 /**
- * Запас моментов вашего зверька: сколько годных, сколько из них уже в роликах за неделю
- * и почему остальные отложены (темно, копия…). Чужие и неотмеченные видео не считаются.
+ * Stock of moments of your pet: how many are usable, how many of them are already in videos this week
+ * and why the others are set aside (dark, copy…). Other people's and unmarked videos do not count.
  */
-/** Метка плана, где не ваш зверёк (чужой зверь). */
+/** Label of a plan where the pet is not yours (another animal). */
 export const NOT_PET = 'не ваш зверёк';
 
 /**
- * Видео подтверждено как «ваш зверёк»: лучший момент плана, где лежит окно мордочки (самое непохожее
- * на остальной ролик место), ставится на это окно — сборка режет кусок вокруг него, а не держание в ладони.
+ * The video is confirmed as "your pet": the best moment of the plan where the face window lies (the most unlike
+ * the rest of the video place), is set to this window — assembly cuts the piece around it, not holding it in the palm.
  */
 function faceMoment(c) {
   const m = c.privacy?.moment;
@@ -58,9 +58,9 @@ function faceMoment(c) {
   if (!s.peaks.some((p) => p.kind === 'мордочка' && p.t === m.t)) s.peaks.push({ t: m.t, kind: 'мордочка', score: s.best.score ?? 1 });
 }
 /**
- * Зверька держат в руках весь ролик (круг 19, IMG_0129): вне окна мордочки он зажат в кулаке и виден
- * только хвост. Годен лишь кусок, где лежит окно мордочки; остальные — в запас «зверька не видно».
- * Окна нет — решать нечем, куски не трогаем.
+ * The pet is held in hands the whole video (round 19, IMG_0129): outside the face window it is held in a fist and visible
+ * only by its tail. Only a piece where the face window lies is usable; the others go to the reserve "pet not visible".
+ * No window — nothing to decide by, the pieces are left alone.
  */
 function heldOnlyFace(c) {
   const m = c.privacy?.moment;
@@ -71,7 +71,7 @@ function heldOnlyFace(c) {
     s.score = 0; s.why = 'зверёк в руках — берём только кусок с мордочкой';
   }
 }
-/** Вид зверька не подтверждён: модель не уверена, или без Claude и без модели никто не смотрел, а человек ещё не отметил. */
+/** The pet's species is not confirmed: the model is not sure, or without Claude and without a model nobody looked, and the person has not marked it yet. */
 export const unmarkedClip = (c) => c?.pet == null && (Boolean(c?.petUnsure) || (Boolean(c?.vision?.by) && c.vision.by !== 'claude'));
 
 export function countSupply(clips, isFree) {
@@ -102,7 +102,7 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       if (!existsSync(f)) continue;
       const raw = readFileSync(f, 'utf8');
       try { return JSON.parse(raw); } catch {
-        if (f === p) writeFileSync(`${p}.broken-${now()}`, raw); // испорченный файл не теряем
+        if (f === p) writeFileSync(`${p}.broken-${now()}`, raw); // do not lose a corrupted file
       }
     }
     return structuredClone(empty);
@@ -122,12 +122,12 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       const rel = relative(resolve(baseDir), abs);
       if (rel && !rel.startsWith('..') && !isAbsolute(rel)) { delete side[id]; return rel.split('\\').join('/'); }
     }
-    side[id] = abs; // наружный файл: путь только локально
+    side[id] = abs; // external file: the path stays local only
     return null;
   }
   const realPath = (clip) => (clip.rel ? join(baseDir, clip.rel) : side[clip.id] ?? null);
 
-  /** Отпечатки хороших планов — чтобы новый клип не набрал дублей уже взятого. */
+  /** Fingerprints of good plans — so that a new clip does not duplicate what has already been taken. */
   function takenPrints(exceptId) {
     const out = [];
     for (const c of Object.values(db.clips)) {
@@ -146,7 +146,7 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
     all: () => Object.values(db.clips),
     realPath,
 
-    /** Новый файл + его сигналы → клип в библиотеке. Тот же файл второй раз не добавляется. */
+    /** New file + its signals → a clip in the library. The same file is not added a second time. */
     ingest(file, sig, extra = {}) {
       const id = extra.id ?? fileId(file);
       const old = db.clips[id];
@@ -170,8 +170,8 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       return { clip, added: !old };
     },
 
-    /** Разбор Haiku (или эмуляция) по планам: метки дописываются к планам, «падение/стресс» — блок. */
-    /** Фильтр приватности: моменты с лицом или сигаретой вырезаются из планов, план без чистого куска — в запас. */
+    /** Haiku analysis (or its emulation) per plan: labels are appended to the plans; the "fall" and "stress" labels — blocked. */
+    /** Privacy filter: moments with a face or a cigarette are cut out of the plans; a plan without a clean piece goes to the reserve. */
     setPrivacy(id, hits, opts = {}) {
       const c = db.clips[id]; if (!c) return null;
       const r = markPrivate(c.shots, hits, { step: 1, ...opts });
@@ -200,8 +200,8 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
     },
 
     /**
-     * Решено, его ли это зверёк: by — кто решил ('owner' — человек, 'clip' — локальная модель по эталону).
-     * «Не он» — все планы клипа в сторону навсегда.
+     * Decided whether it is his pet: by — who decided ('owner' — a person, 'clip' — the local model by the reference).
+     * "Not him" — all plans of the clip are set aside forever.
      */
     setPet(id, yes, { by = 'owner', why = null } = {}) {
       const c = db.clips[id]; if (!c) return null;
@@ -212,17 +212,17 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       flush();
       return c;
     },
-    /** Модель не уверена, ваш ли это зверёк: клип ждёт отметки человека и в сюжеты не идёт. */
+    /** The model is not sure whether this is your pet: the clip waits for the person's mark and does not go into stories. */
     markUnsure(id) {
       const c = db.clips[id]; if (!c) return null;
       c.pet = null; c.petBy = 'clip'; c.petUnsure = true;
       flush();
       return c;
     },
-    /** Клипы, где вид зверька не подтверждён и человек ещё не отметил. Такие в сюжеты не идут. */
+    /** Clips where the species is not confirmed and the person has not marked it yet. Such clips do not go into stories. */
     pending() { return Object.values(db.clips).filter(unmarked); },
 
-    /** Человек на экране ролика нажал «Убрать момент»: на плане зверька не видно — в сюжеты больше не идёт. */
+    /** The person pressed "Remove moment" on the video screen: the pet is not visible in the plan — it no longer goes into stories. */
     markNoPet(id, shot) {
       const s = db.clips[id]?.shots[shot]; if (!s) return null;
       if (!s.defects.includes('нет зверька')) s.defects.push('нет зверька');
@@ -237,12 +237,12 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       const c = db.clips[id]; if (!c) return;
       c.used.push({ shot, story, at }); flush();
     },
-    /** Когда план брали последний раз (мс) или null. */
+    /** When the plan was last taken (ms) or null. */
     lastUsed(id, shot) {
       const u = db.clips[id]?.used.filter((x) => x.shot === shot) ?? [];
       return u.length ? Math.max(...u.map((x) => x.at)) : null;
     },
-    /** План свободен для сюжета: не брак, не блок, не брали последние `days` дней. */
+    /** A plan is free for a story: not defective, not blocked, not taken in the last `days` days. */
     isFree(id, shot, days = 7) {
       const s = db.clips[id]?.shots[shot];
       if (!s || s.defects.length || unmarked(db.clips[id])) return false;
@@ -251,8 +251,8 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
     },
 
     /**
-     * Поиск планов: «прыжок ночь» — план должен подходить под каждое слово.
-     * opts: spare — показывать и брак «в запасе»; minStars; free — только свободные (7 дней).
+     * Plan search: "jump night" — a plan must match every word.
+     * opts: spare — show defects "in reserve" too; minStars; free — only free ones (7 days).
      */
     search(query = '', { spare = false, minStars = 0, free = false } = {}) {
       const words = norm(query).split(/\s+/).filter(Boolean);
@@ -270,7 +270,7 @@ export function createLibrary({ path, baseDir, now = () => Date.now() }) {
       return out.sort((a, b) => b.score - a.score);
     },
 
-    /** Запас моментов вашего зверька — см. countSupply. */
+    /** Stock of moments of your pet — see countSupply. */
     supply() { return countSupply(Object.values(db.clips), (id, i) => this.isFree(id, i)); },
 
     stats() {

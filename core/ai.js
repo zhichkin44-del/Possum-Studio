@@ -1,4 +1,4 @@
-// Тексты к ролику: Claude (если владелец дал ключ) или шаблоны — с честной меткой источника.
+// Video texts: Claude (if the owner gave a key) or templates — with an honest source label.
 import { redactSecrets } from './settings.js';
 import { OR_PRICES, providerOf, modelFor, chatJson } from './openrouter.js';
 
@@ -28,7 +28,7 @@ export function templateTexts(facts = {}) {
   return { ...t, tags: ['питомцы', 'зверёк', 'милыеживотные'], tagsEn: ['pets', 'cuteanimals', 'cutepets'] };
 }
 
-// Ответ ИИ → тексты: английский канал без своих полей берёт английский шаблон (старые ответы, неполная схема).
+// AI reply → texts: the English channel without its own fields takes the English template (old replies, incomplete schema).
 function fromAnswer(j, facts) {
   const tpl = templateTexts(facts);
   const descEn = typeof j.descEn === 'string' && j.descEn.trim() ? j.descEn.trim() : tpl.descEn;
@@ -51,17 +51,17 @@ function prompt(facts) {
   ].join('\n');
 }
 
-// Прайс Claude, $ за 1 млн токенов (вход / выход). Источник — прайс Anthropic; меняется — правим здесь.
-// Модели OpenRouter — из core/openrouter.js (там же источник цен).
+// Claude price, $ per 1M tokens (input / output). Source: Anthropic's price list; when it changes, we edit it here.
+// OpenRouter models come from core/openrouter.js (the price source is there too).
 export const PRICES = {
   'claude-opus-5-5': { in: 4, out: 20 },
   ...OR_PRICES,
 };
-const MAX_OUT = 1500; // потолок ответа (max_tokens ниже)
-const TYPICAL_OUT = 400; // заголовок RU+EN, описание и до 8 тегов в JSON
+const MAX_OUT = 1500; // reply ceiling (max_tokens below)
+const TYPICAL_OUT = 400; // RU+EN title, description and up to 8 tags in JSON
 
-// Сколько стоят тексты к одному ролику: вход — длина нашего запроса (≈2 символа на токен, с запасом),
-// выход — обычный ответ и потолок max_tokens. Неизвестная модель — null: расход не выдумываем.
+// What the texts for one video cost: input — the length of our request (≈2 characters per token, with a margin),
+// output — a typical reply and the max_tokens ceiling. Unknown model — null: we do not invent the cost.
 export function textCost(model = 'claude-opus-5-5') {
   const p = PRICES[model];
   if (!p) return null;
@@ -87,7 +87,7 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
   const fallback = (facts, reason) => ({ ...templateTexts(facts), source: 'шаблон', fallbackReason: reason });
   const clean = (e, n) => redactSecrets(e?.message ?? e, { claudeKey: apiKey }).slice(0, n);
 
-  // OpenRouter: source остаётся 'claude' — это признак «писал ИИ» для библиотеки и окна; кто именно — в provider/model.
+  // OpenRouter: source stays 'claude' — the marker of "written by AI" for the library and the window; who exactly — in provider/model.
   async function viaOpenRouter(facts) {
     try {
       const { json: j } = await chatJson({ apiKey, model: useModel, content: prompt(facts), schema: SCHEMA, name: 'post_texts', maxTokens: MAX_OUT, fetchImpl });
@@ -100,9 +100,9 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
 
   return {
     enabled: Boolean(apiKey),
-    /** Любой ответ JSON по схеме (сценарий дня и т. п.): ошибки — исключением, запасной вариант решает вызывающий. */
+    /** Any JSON reply by schema (the day's scenario, etc.): errors are thrown; the caller decides on the fallback. */
     async json({ content, schema, name = 'answer', maxTokens = MAX_OUT }) {
-      if (!apiKey) throw new Error('нет ключа ИИ');
+      if (!apiKey) throw new Error('no AI key');
       try {
         if (provider === 'openrouter') return (await chatJson({ apiKey, model: useModel, content, schema, name, maxTokens, fetchImpl })).json;
         const c = await getClient();
@@ -111,7 +111,7 @@ export function createAi({ apiKey = '', client = null, model = 'claude-opus-5-5'
           output_config: { effort: 'low', format: { type: 'json_schema', schema } },
           messages: [{ role: 'user', content }],
         });
-        if (res.stop_reason === 'refusal') throw new Error('ИИ отказался');
+        if (res.stop_reason === 'refusal') throw new Error('AI refused');
         return JSON.parse((res.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
       } catch (e) { throw new Error(clean(e, 200)); }
     },

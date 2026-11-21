@@ -1,17 +1,17 @@
-// Режиссёр: «Что снять сегодня». Сценарий дня — тип сюжета (KINDS из stories.js) и список кадров.
-// Кадр: что поймать, свет, угол, сколько секунд и метки (core/shots.js, core/vision.js), по которым видно, снят ли он.
-// Есть ключ ИИ — тексты сценария переписывает ИИ (ai.json); нет ключа или ответ плохой — шаблон. Метки и свет всегда наши.
+// Director: "What to shoot today". The day's scenario — a story type (KINDS from stories.js) and a list of frames.
+// Frame: what to catch, light, angle, how many seconds, and the markers (core/shots.js, core/vision.js) by which we see whether it was shot.
+// If there is an AI key, the AI rewrites the scenario texts (ai.json); no key or a bad reply — the template. Markers and light are always ours.
 
 import { KINDS } from './stories.js';
 
-/** Свет на каждом кадре один: зверёк ночной, глаза чувствительные. */
+/** The light is the same in every frame: the pet is nocturnal, its eyes are sensitive. */
 export const LIGHT = 'без белого света и вспышки — тусклый тёплый свет сбоку';
 const HANDS = 'В кадре только руки и зверёк, без лица. Если он прячется или вырывается — съёмку прекращаем.';
-const BANNED = /вспышк|бел(ый|ого|ом) свет|включ\p{L}* свет|ярк\p{L}* свет|по имени/iu; // \w не видит кириллицу
+const BANNED = /вспышк|бел(ый|ого|ом) свет|включ\p{L}* свет|ярк\p{L}* свет|по имени/iu; // \w does not match Cyrillic
 
 const shot = (what, angle, secs, labels) => ({ what, light: LIGHT, angle, secs, labels });
 
-/** Шаблоны: по одному на тип сюжета, кадры — в порядке монтажа. Тексты — из задания дня (src/tasks.js) и памятки съёмки. */
+/** Templates: one per story type, frames in editing order. Texts come from the daily task (src/tasks.js) and the shooting memo. */
 export const SCENARIOS = [
   {
     id: 'meal', kind: 'asmr', title: 'Ужин со звуком', hook: 'Слышно, как хрустит?',
@@ -67,7 +67,7 @@ export const SCENARIOS = [
 export const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dayStart = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-/** Шаблон дня: по кругу, но не тот тип сюжета, что был последним в календаре. */
+/** Day template: in rotation, but not the story type that was last in the calendar. */
 export function pickScenario({ now = Date.now(), history = [] } = {}) {
   const last = [...(Array.isArray(history) ? history : [])].sort((x, y) => (x.at ?? 0) - (y.at ?? 0)).at(-1)?.kind ?? null;
   let i = Math.floor(dayStart(now) / 864e5) % SCENARIOS.length;
@@ -94,7 +94,7 @@ const brief = (s) => [
 
 const tidy = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 
-/** Тексты ИИ поверх шаблона: метки, свет, тип сюжета — из шаблона; плохой ответ — шаблон как был. */
+/** AI texts on top of the template: markers, light and story type come from the template; a bad reply — the template as it was. */
 export async function aiScenario(ai, base) {
   if (!ai?.enabled || typeof ai.json !== 'function') return base;
   try {
@@ -116,8 +116,8 @@ const low = (a) => (a ?? []).map((l) => String(l).toLowerCase());
 const fits = (want, labels) => { const have = low(labels); return low(want).some((w) => have.includes(w)); };
 
 /**
- * Что из сценария уже снято: хорошие планы видео, добавленных с начала дня сценария (свой зверёк, без брака).
- * Возвращает кадры с have/found и счёт «снято X из Y».
+ * What from the scenario is already shot: good plans of videos added since the start of the scenario's day (own pet, no defects).
+ * Returns frames with have/found and the count "shot X of Y".
  */
 export function coverage(scenario, clips = [], { since = null } = {}) {
   const from = since ?? (scenario?.date ? new Date(`${scenario.date}T00:00:00`).getTime() : 0);
@@ -131,12 +131,12 @@ export function coverage(scenario, clips = [], { since = null } = {}) {
   return { shots, done, total: shots.length, missing: shots.filter((s) => !s.have).map((s) => s.n), clips: fresh.length };
 }
 
-// Порядок кусков в этих сюжетах задан самим сюжетом («Сначала/Потом», утро→вечер) — не трогаем.
+// The order of the pieces in these stories is set by the story itself ("First/Then", morning→evening) — we do not touch it.
 const FIXED = new Set(['day', 'beforeAfter']);
 
 /**
- * Монтаж по сценарию: каждый кусок встаёт на место первого подходящего кадра сценария, неподходящие — в конец.
- * Подписи и «держать кадр» привязаны к месту (№5…№1, «Эпизод»), поэтому остаются на своих позициях.
+ * Editing by scenario: each piece takes the place of the first matching frame of the scenario; non-matching ones go to the end.
+ * Captions and "hold the frame" are tied to the position (No. 5…No. 1, "Episode"), so they stay in their places.
  */
 export function orderByScenario(story, scenario, labelsOf) {
   if (!story || !scenario || story.kind !== scenario.kind || FIXED.has(story.kind) || !KINDS.includes(story.kind)) return story;

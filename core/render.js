@@ -1,18 +1,18 @@
-// Монтаж по плану: куски → вертикаль 1080×1920 → наезд → подписи RU/EN → звуки и музыка → −14 LUFS.
+// Editing by plan: pieces → vertical 1080×1920 → push-in → RU/EN captions → sounds and music → −14 LUFS.
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const f3 = (x) => Number(x).toFixed(3);
 
-/** Сжатие готового ролика: medium + CRF 18. Площадки пережимают ещё раз, нужен запас качества (veryfast/20 давал кубики на шерсти). Замер 16.11, 20 с 1080×1920: slow 34 с / 113 МБ, medium 18 с / 112 МБ — тот же размер вдвое быстрее. */
+/** Compression of the finished video: medium + CRF 18. Platforms re-compress again, so there must be a quality margin (veryfast/20 gave blocks on fur). Measured 16.11, 20 s of 1080×1920: slow 34 s / 113 MB, medium 18 s / 112 MB — the same size, twice as fast. */
 export const ENCODE = ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p'];
 
-/** Яркость куска (0–255), ниже которой в кадре шум телефона: его убирает hqdn3d. */
+/** Brightness of a piece (0–255) below which the frame has phone noise: hqdn3d removes it. */
 export const NOISY_LUMA = 90;
 
 /**
- * Обработка картинки куска: шумодав для тёмного кадра, живость цвета без кислотности (vibrance бережёт уже насыщенное),
- * лёгкий контраст и резкость CAS. soft — для спокойных и тихих роликов: всё мягче.
+ * Image processing of a piece: denoiser for a dark frame, color vividness without acidity (vibrance protects what is already saturated),
+ * light contrast and CAS sharpness. soft — for calm and quiet videos: everything softer.
  */
 export function gradeChain(p = {}, soft = false) {
   const denoise = typeof p.luma === 'number' && p.luma < NOISY_LUMA ? 'hqdn3d=1.5:1.5:6:6,' : '';
@@ -21,7 +21,7 @@ export function gradeChain(p = {}, soft = false) {
     : 'vibrance=intensity=0.15,eq=contrast=1.05:saturation=1.08,cas=strength=0.4');
 }
 
-/** Переносит строку по словам, чтобы подпись не вылезала за кадр. */
+/** Wraps a line by words so that a caption does not go out of the frame. */
 export function wrapLines(text, max = 20) {
   const lines = []; let cur = '';
   for (const w of String(text ?? '').split(/\s+/).filter(Boolean)) {
@@ -31,7 +31,7 @@ export function wrapLines(text, max = 20) {
   return lines.slice(0, 3);
 }
 
-/** luma — средняя яркость исходника: на плане у кусков своей яркости нет, без неё шумодав не включается. */
+/** luma — average brightness of the source: plan pieces have no brightness of their own, and without it the denoiser does not switch on. */
 export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, captionFiles = { ru: [], en: [] }, luma }) {
   const inputs = ['-i', src];
   let idx = 1;
@@ -45,14 +45,14 @@ export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, capti
   });
   parts.push(`${plan.segments.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${n}:v=1:a=1[vc][ac]`);
 
-  // наезд: плавно до scale и обратно
+  // push-in: smoothly up to scale and back
   let v = 'vc';
   if (plan.zooms?.length) {
     const z = plan.zooms.map((zz) => `between(it,${f3(zz.at)},${f3(zz.at + zz.len)})*${f3(zz.scale - 1)}*sin(PI*(it-${f3(zz.at)})/${f3(zz.len)})`).join('+');
     parts.push(`[vc]zoompan=z='1+${z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30[vz]`);
     v = 'vz';
   }
-  // подписи: по drawtext на строку, файлы и шрифт лежат в рабочей папке
+  // captions: drawtext per line; the files and the font are in the working folder
   const cap = plan.captions ?? {};
   const en = `between(t,${f3(cap.from ?? 0)},${f3(cap.to ?? 3)})`;
   const draws = [];
@@ -63,7 +63,7 @@ export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, capti
   if (draws.length) { parts.push(`[${v}]${draws.join(',')}[vt]`); v = 'vt'; }
   parts.push(`[${v}]format=yuv420p[vout]`);
 
-  // звук: родной звук ролика + 1–3 эффекта + тихая музыка
+  // sound: the video's own sound + 1–3 effects + quiet music
   const mix = ['[ac]'];
   plan.sfx.forEach((s, k) => {
     const file = sfxFiles[s.name];
@@ -91,7 +91,7 @@ export function buildRenderArgs({ src, plan, hasAudio, sfxFiles = {}, out, capti
   ];
 }
 
-/** Рендер одного варианта. workDir — рабочая папка для шрифта и текстов подписей. */
+/** Render one variant. workDir — the working folder for the font and the caption texts. */
 export async function renderPlan({ src, plan, info, sfxFiles, out, workDir, font, media }) {
   mkdirSync(workDir, { recursive: true });
   const captionFiles = { ru: [], en: [] };
@@ -116,16 +116,16 @@ export async function makeCover({ video, at, out, media }) {
 }
 
 /**
- * Время кадра для обложки: резкий, нормально освещённый, без смазки; самые края ролика не берём.
- * Кадр, где что-то движется (умеренно), лучше неподвижного: в пустой сцене (пустая ванна) движения нет,
- * а резкая смена картинки на склейке — не движение зверька.
+ * Frame time for the cover: sharp, normally lit, without blur; the very edges of the video are not used.
+ * A frame where something moves (moderately) is better than a still one: in an empty scene (an empty bath) there is no motion,
+ * and a sharp change of picture at a cut is not the pet's motion.
  */
 export function bestCoverAt(sig) {
   const step = sig?.step, sharp = sig?.sharp ?? [], n = sharp.length;
   if (!step || !n) return null;
   const dur = sig.info?.duration ?? n * step;
   const maxSharp = Math.max(...sharp, 1e-9);
-  // сначала только нормально освещённые кадры (не тёмные и не пересвеченные); нет таких — любые
+  // first only normally lit frames (not dark and not overexposed); if there are none — any
   const lit = (i) => { const y = sig.luma?.[i] ?? 120; return y >= 60 && y <= 200; };
   const anyLit = sharp.some((_, i) => i * step >= 0.5 && i * step <= dur - 0.5 && lit(i));
   let best = null, bestScore = -1;

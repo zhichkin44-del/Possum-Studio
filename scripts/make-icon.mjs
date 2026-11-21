@@ -1,5 +1,5 @@
-// Иконка «Поссум Студия»: мордочка сахарного поссума (светлая голова, тёмная полоса, большие глаза и уши) на тёплом фоне.
-// Рисуется кодом, без сторонних картинок: build/icon.ico (256, 64, 48, 32, 16) и app/icon.ico для окна.
+// "Possum Studio" icon: a sugar possum's face (light head, dark stripe, big eyes and ears) on a warm background.
+// Drawn in code, no third-party images: build/icon.ico (256, 64, 48, 32, 16) and app/icon.ico for the window.
 //   node scripts/make-icon.mjs
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// фигуры в координатах 0..1; порядок — снизу вверх
+// shapes in 0..1 coordinates; order — bottom to top
 const C = { bg: [214, 128, 62], bg2: [240, 176, 96], ear: [74, 62, 58], earIn: [232, 170, 160], head: [226, 220, 212], stripe: [70, 60, 56], eye: [24, 20, 22], shine: [255, 255, 255], nose: [222, 120, 132], ring: [120, 104, 96] };
 const roundRect = (x, y, r) => { const dx = Math.max(Math.abs(x - 0.5) - (0.5 - r), 0), dy = Math.max(Math.abs(y - 0.5) - (0.5 - r), 0); return dx * dx + dy * dy <= r * r; };
 const ellipse = (cx, cy, rx, ry) => (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;

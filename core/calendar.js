@@ -1,18 +1,18 @@
-// Календарь выкладки: один ролик в день в 18:00, очередь на 14 дней вперёд.
-// Календарь ничего не выкладывает: слот — это готовый пакет (mp4 + обложка + тексты), выкладывает человек кнопкой этапа 1.
+// Posting calendar: one video a day at 18:00, a queue 14 days ahead.
+// The calendar publishes nothing: a slot is a ready package (mp4 + cover + texts), and a person publishes it with the stage 1 button.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const DAY = 24 * 3600 * 1000;
 const pad = (n) => String(n).padStart(2, '0');
-/** Дата по местному времени: «2026-11-15». */
+/** Date in local time: "2026-11-15". */
 export const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
 export function createCalendar({ path = null, now = Date.now, hour = 18, days = 14 } = {}) {
   let db = { slots: [] };
   if (path && existsSync(path)) {
     try { db = { slots: [], ...JSON.parse(readFileSync(path, 'utf8')) }; }
-    catch { try { copyFileSync(path, `${path}.bak`); } catch { /* нечего сохранить */ } }
+    catch { try { copyFileSync(path, `${path}.bak`); } catch { /* nothing to save */ } }
   }
   const save = () => {
     if (!path) return;
@@ -20,9 +20,9 @@ export function createCalendar({ path = null, now = Date.now, hour = 18, days = 
     writeFileSync(`${path}.tmp`, JSON.stringify(db, null, 2), 'utf8');
     renameSync(`${path}.tmp`, path);
   };
-  /** Время выкладки через `offset` дней от сегодня (местные 18:00). */
+  /** Posting time `offset` days from today (18:00 local). */
   const slotAt = (offset) => { const d = new Date(now()); d.setHours(hour, 0, 0, 0); d.setDate(d.getDate() + offset); return d.getTime(); };
-  const firstOffset = () => (now() >= slotAt(0) ? 1 : 0); // сегодняшние 18:00 прошли — ближайший слот завтра
+  const firstOffset = () => (now() >= slotAt(0) ? 1 : 0); // today's 18:00 has passed — the nearest slot is tomorrow
   const live = () => db.slots.filter((s) => s.status !== 'skipped');
   const taken = (day) => live().some((s) => s.day === day);
   const today = () => dayKey(now());
@@ -32,7 +32,7 @@ export function createCalendar({ path = null, now = Date.now, hour = 18, days = 
     all: () => db.slots.map((s) => ({ ...s })),
     get: (id) => db.slots.find((s) => s.id === id) ?? null,
 
-    /** Свободных дней в окне на 14 дней вперёд. */
+    /** Free days in the 14-day window ahead. */
     free() {
       const f = firstOffset();
       let n = 0;
@@ -40,14 +40,14 @@ export function createCalendar({ path = null, now = Date.now, hour = 18, days = 
       return n;
     },
 
-    /** День первого свободного слота (ГГГГ-ММ-ДД) или null — по нему называется папка ролика. */
+    /** Day of the first free slot (YYYY-MM-DD) or null — the video's folder is named after it. */
     nextFree() {
       const f = firstOffset();
       for (let k = f; k < f + days; k++) { const day = dayKey(slotAt(k)); if (!taken(day)) return day; }
       return null;
     },
 
-    /** Готовый ролик → первый свободный день. null — окно на 14 дней занято. */
+    /** Finished video → first free day. null — the 14-day window is full. */
     add(entry) {
       if (db.slots.some((s) => s.id === entry.id && s.status !== 'skipped')) return db.slots.find((s) => s.id === entry.id);
       const f = firstOffset();
@@ -65,13 +65,13 @@ export function createCalendar({ path = null, now = Date.now, hour = 18, days = 
       return null;
     },
 
-    /** Что впереди (с сегодняшнего дня), без отменённых. */
+    /** What is ahead (from today on), without cancelled items. */
     upcoming: () => live().filter((s) => s.day >= today()).map((s) => ({ ...s })),
-    /** Пора выкладывать: готово и день наступил (или прошёл). */
+    /** Time to publish: ready and the day has come (or passed). */
     due: () => live().filter((s) => s.status === 'ready' && s.day <= today()).map((s) => ({ ...s })),
     ready: () => live().filter((s) => s.status === 'ready').map((s) => ({ ...s })),
 
-    /** История для ворот разнообразия: [{kind, at}] старые → новые. */
+    /** History for the variety gate: [{kind, at}] oldest → newest. */
     history: () => live().map((s) => ({ kind: s.kind, at: s.at, id: s.id })),
 
     pickTitle(id, pick) {
@@ -80,13 +80,13 @@ export function createCalendar({ path = null, now = Date.now, hour = 18, days = 
       s.pick = pick; save(); return { ...s };
     },
     markPublished(id) { const s = db.slots.find((x) => x.id === id); if (!s) return null; s.status = 'published'; s.publishedAt = now(); save(); return { ...s }; },
-    /** Ролик перемонтирован (убран момент) — обновить пояснение и длину. */
+    /** Video re-edited (a moment removed) — update the note and the length. */
     update(id, patch) {
       const s = db.slots.find((x) => x.id === id); if (!s) return null;
       for (const k of ['why', 'total']) if (k in patch) s[k] = patch[k];
       save(); return { ...s };
     },
-    /** «Не выкладывать»: день освобождается. */
+    /** "Do not publish": the day is freed. */
     skip(id) { const s = db.slots.find((x) => x.id === id); if (!s) return null; s.status = 'skipped'; save(); return { ...s }; },
     DAY,
   };

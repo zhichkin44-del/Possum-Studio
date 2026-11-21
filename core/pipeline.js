@@ -1,5 +1,5 @@
-// Конвейер: видео → анализ → совет и забота о зверьке → тексты → три монтажа (YT/TikTok/Reels) → обложка → manifest.json + пост.txt.
-// Ничего не выкладывает: публикация отдельно и только по кнопке владельца.
+// Pipeline: video → analysis → advice and pet care → texts → three edits (YT/TikTok/Reels) → cover → manifest.json + post.txt.
+// Publishes nothing: publishing is separate and only by the owner's button.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { deriveMoments } from './analyze.js';
@@ -12,17 +12,17 @@ import { renderPlan, makeCover } from './render.js';
 
 const stamp = (d = new Date()) => d.toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})/, '$1-');
 
-// первая буква заглавная, точка в конце
+// first letter capitalized, period at the end
 const sentence = (t) => { const x = String(t ?? '').trim(); return x ? x[0].toUpperCase() + x.slice(1) + (/[.!?…]$/.test(x) ? '' : '.') : ''; };
 
-/** Если из одного видео больше двух кусков — почему (правило «не больше двух, пока хватает других»). */
+/** If more than two pieces come from one video — why (the rule "no more than two while there are enough others"). */
 function manyFromOne(sources = []) {
   const n = {};
   for (const x of sources) n[x.file] = (n[x.file] ?? 0) + 1;
   return Object.entries(n).filter(([, k]) => k > 2).map(([f, k]) => `Из видео «${f}» ${k} куска: других подходящих видео не хватило.`);
 }
 
-/** Служебные заметки для владельца (не для ленты): совет и забота о зверьке. */
+/** Service notes for the owner (not for the feed): advice and pet care. */
 export function notesText(m) {
   return [
     'Это заметки для вас, не для публикации.', '',
@@ -34,13 +34,13 @@ export function notesText(m) {
   ].join('\n');
 }
 
-/** Пишет пост.txt (тексты площадок) и заметки.txt (совет и забота). */
+/** Writes post.txt (platform texts) and notes.txt (advice and care). */
 export function writePost(dir, m) {
   writeFileSync(join(dir, 'пост.txt'), postText(m), 'utf8');
   writeFileSync(join(dir, 'заметки.txt'), notesText(m), 'utf8');
 }
 
-/** пост.txt — только тексты площадок, его можно копировать целиком. */
+/** post.txt — only the platform texts; it can be copied as a whole. */
 const block = (p) => [
   '— YouTube Shorts —', p.youtube.title, p.youtube.description, `Теги: ${p.youtube.tags.join(', ')}`,
   '', '— TikTok —', p.tiktok.caption,
@@ -52,8 +52,8 @@ export function postText(m) {
 }
 
 /**
- * processVideo — один ролик целиком.
- * deps: media (createMedia), ai (createAi), assetsDir (звуки/колыбельная), musicDir (своя музыка), font (ttf), onStep(text).
+ * processVideo — one whole video.
+ * deps: media (createMedia), ai (createAi), assetsDir (sounds/lullaby), musicDir (own music), font (ttf), onStep(text).
  */
 export async function processVideo({ src, outRoot, settings = {}, media, ai, assetsDir, musicDir, font, profiles = Object.keys(PROFILES), onStep = () => {} }) {
   const name = basename(src, extname(src)).replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40) || 'video';

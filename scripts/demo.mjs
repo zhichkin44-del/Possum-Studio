@@ -1,6 +1,6 @@
-// Демо без ключа и без сети: делает 9 тестовых клипов (генераторы ffmpeg), прогоняет их пачкой через студию
-// и печатает, что смонтировано и какие решения ждут человека. Ничего не выкладывает, токены не читает.
-// Запуск: npm run demo  (папка с результатом печатается в конце)
+// Demo without a key and without network: makes 9 test clips (ffmpeg generators), runs them as a batch through the studio
+// and prints what was edited and which decisions await the person. Publishes nothing, does not read tokens.
+// Run: npm run demo  (the result folder is printed at the end)
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,7 +25,7 @@ function clip(name, sec, w, h, { sound = true, pattern = 'testsrc2', extra = '' 
 }
 
 console.log('Делаю тестовые клипы…');
-// Генераторы разные по виду: одинаковые клипы библиотека честно отсеет как дубли.
+// Generators look different: identical clips would be honestly filtered out by the library as duplicates.
 const files = [
   clip('план 1.mp4', 6, 1080, 1920),
   clip('план 2.mp4', 6, 720, 1280, { pattern: 'mandelbrot' }),

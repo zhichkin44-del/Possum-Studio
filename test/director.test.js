@@ -1,4 +1,4 @@
-// Режиссёр «Что снять сегодня»: шаблон дня, ИИ поверх шаблона, что уже снято, монтаж по порядку кадров. Сеть и ИИ подменены.
+// Director "What to shoot today": day template, AI on top of the template, what is already shot, editing in frame order. Network and AI are stubbed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, existsSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { fakeVault } from './vault.js';
 setVault(fakeVault());
 const NOW = new Date('2026-11-16T12:00:00').getTime();
 
-test('шаблоны: по одному на каждый тип сюжета, у каждого кадра свет без вспышки и метки', () => {
+test('templates: one per story type, every shot has light without flash and labels', () => {
   assert.deepEqual(new Set(SCENARIOS.map((s) => s.kind)), new Set(KINDS));
   for (const s of SCENARIOS) for (const x of s.shots) {
     assert.equal(x.light, LIGHT);
@@ -22,7 +22,7 @@ test('шаблоны: по одному на каждый тип сюжета, �
   }
 });
 
-test('pickScenario: номера кадров, дата, памятка про руки; не повторяет последний тип календаря', () => {
+test('pickScenario: shot numbers, date, hands reminder; does not repeat the last calendar type', () => {
   const s = pickScenario({ now: NOW });
   assert.equal(s.date, dayKey(NOW));
   assert.equal(s.source, 'шаблон');
@@ -31,12 +31,12 @@ test('pickScenario: номера кадров, дата, памятка про �
   const again = pickScenario({ now: NOW, history: [{ kind: 'calm', at: 1 }, { kind: s.kind, at: 2 }] });
   assert.notEqual(again.kind, s.kind);
   const older = pickScenario({ now: NOW, history: [{ kind: s.kind, at: 2 }, { kind: 'zzz', at: 1 }] });
-  assert.notEqual(older.kind, s.kind, 'последний — по времени, а не по порядку в списке');
+  assert.notEqual(older.kind, s.kind, 'last — by time, not by list order');
 });
 
 const fakeAi = (reply) => ({ enabled: true, async json() { if (reply instanceof Error) throw reply; return reply; } });
 
-test('aiScenario: тексты ИИ поверх шаблона, метки и свет остаются наши', async () => {
+test('aiScenario: AI texts over the template, labels and light stay ours', async () => {
   const base = pickScenario({ now: NOW });
   const s = await aiScenario(fakeAi({ title: 'Новый', hook: 'Смотри!', shots: base.shots.map((_, i) => ({ what: `кадр ${i}`, angle: 'сбоку', secs: '10 с' })) }), base);
   assert.equal(s.source, 'ИИ');
@@ -46,7 +46,7 @@ test('aiScenario: тексты ИИ поверх шаблона, метки и �
   assert.ok(s.shots.every((x) => x.light === LIGHT));
 });
 
-test('aiScenario: без ключа, неполный ответ, вспышка или ошибка — шаблон с причиной', async () => {
+test('aiScenario: no key, incomplete response, flash or error — template with a reason', async () => {
   const base = pickScenario({ now: NOW });
   assert.equal(await aiScenario({ enabled: false }, base), base);
   const short = await aiScenario(fakeAi({ title: 'x', hook: 'y', shots: [] }), base);
@@ -57,7 +57,7 @@ test('aiScenario: без ключа, неполный ответ, вспышка
   assert.match(down.fallbackReason, /ИИ недоступен/);
 });
 
-test('coverage: свежие хорошие планы своего зверька закрывают кадры; брак, чужой и вчерашний — нет', () => {
+test('coverage: fresh good plans of own pet cover shots; defective, foreign and yesterday ones do not', () => {
   const sc = { date: dayKey(NOW), shots: [{ n: 1, labels: ['ест'] }, { n: 2, labels: ['прыжок'] }, { n: 3, labels: ['спит'] }] };
   const today = NOW - 3600e3;
   const clips = [
@@ -72,7 +72,7 @@ test('coverage: свежие хорошие планы своего зверьк
   assert.deepEqual(c.shots[0].found, [{ clip: 'a', shot: 0, name: 'a.mp4' }]);
 });
 
-test('orderByScenario: куски по порядку кадров, подписи и «держать» на своих местах', () => {
+test('orderByScenario: clips in shot order, captions and "hold" stay in place', () => {
   const sc = SCENARIOS.find((s) => s.kind === 'top5');
   const L = { p1: ['умывается'], p2: ['ест'], p3: ['прыжок'] };
   const story = { kind: 'top5', pieces: [
@@ -85,7 +85,7 @@ test('orderByScenario: куски по порядку кадров, подпис
   assert.equal(out.byScenario, 'five');
 });
 
-test('orderByScenario: другой тип, «день» и «сначала/потом» не трогает', () => {
+test('orderByScenario: other type, "day" and "first/then" are left alone', () => {
   const day = SCENARIOS.find((s) => s.kind === 'day');
   const st = { kind: 'day', pieces: [{ id: 'x' }, { id: 'y' }] };
   assert.equal(orderByScenario(st, day, () => ['ест']), st);
@@ -94,7 +94,7 @@ test('orderByScenario: другой тип, «день» и «сначала/п�
   assert.equal(orderByScenario(top, null, () => []), top);
 });
 
-test('studio.today: сценарий раз в день, без ключа — шаблон, «Другой сценарий» пишет заново', async () => {
+test('studio.today: scenario once a day, without key — template, "Another scenario" rewrites it', async () => {
   const root = mkdtempSync(join(tmpdir(), 'possum-today-'));
   let calls = 0;
   const aiFactory = () => ({ enabled: false, async json() { calls++; return {}; } });
@@ -110,12 +110,12 @@ test('studio.today: сценарий раз в день, без ключа — �
   assert.equal(calls, 0);
 });
 
-test('ai.json через OpenRouter: ответ по схеме; ошибка сети — исключение без ключа в тексте', async () => {
+test('ai.json via OpenRouter: response per schema; network error — exception with no key in the text', async () => {
   const { createAi } = await import('../core/ai.js');
-  const KEY = 'sk-or-v1-REDACTEDcdef'; // поддельный
+  const KEY = 'sk-or-v1-REDACTEDcdef'; // fake
   const ok = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"title":"Т","hook":"К","shots":[]}' }, finish_reason: 'stop' }] }) });
   assert.deepEqual(await createAi({ apiKey: KEY, fetchImpl: ok }).json({ content: 'x', schema: {} }), { title: 'Т', hook: 'К', shots: [] });
   const bad = async () => { throw new Error(`упало ${KEY}`); };
   await assert.rejects(createAi({ apiKey: KEY, fetchImpl: bad }).json({ content: 'x', schema: {} }), (e) => !e.message.includes(KEY));
-  await assert.rejects(createAi({}).json({ content: 'x', schema: {} }), /нет ключа/);
+  await assert.rejects(createAi({}).json({ content: 'x', schema: {} }), /no AI key/);
 });

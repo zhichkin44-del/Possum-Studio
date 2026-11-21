@@ -1,4 +1,4 @@
-// Перетаскивание во «Входящие»: файлы и папки, только видео, без затирания, с прогрессом копирования.
+// Drag-and-drop into "Inbox": files and folders, videos only, no overwriting, with copy progress.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';
@@ -20,13 +20,13 @@ function tree() {
   return { root, src, inDir };
 }
 
-test('папка раскрывается в видео, вложенные тоже; картинки, служебные _папки и out пропускаются', () => {
+test('folder expands into videos, nested ones too; images, service _folders and out are skipped', () => {
   const { root, src } = tree();
   const got = collectVideos([src, join(root, 'single.mp4'), join(root, 'нет-такого.mp4')]).map((f) => basename(f)).sort();
   assert.deepEqual(got, ['IMG_0123.MOV', 'IMG_0129.mov', 'single.mp4']);
 });
 
-test('копирование: прогресс по файлам и байтам, имена не затираются, повторный дроп не дублирует', async () => {
+test('copying: progress by files and bytes, names are not overwritten, repeated drop does not duplicate', async () => {
   const { src, inDir } = tree();
   writeFileSync(join(inDir, 'IMG_0123.MOV'), 'другое видео с тем же именем');
   const seen = [];
@@ -36,15 +36,15 @@ test('копирование: прогресс по файлам и байтам
   assert.equal(seen.at(-1).total, 2);
   assert.equal(seen.at(-1).bytesDone, seen.at(-1).bytesTotal);
   const names = readdirSync(inDir).sort();
-  assert.equal(names.length, 3, 'старый файл с тем же именем не затёрт');
+  assert.equal(names.length, 3, 'old file with the same name is not overwritten');
   assert.ok(names.some((n) => /^IMG_0123 \(2\)\.MOV$/.test(n)));
   assert.equal(readFileSync(join(inDir, 'IMG_0123.MOV'), 'utf8'), 'другое видео с тем же именем');
   const again = await copyVideos(collectVideos([src]), inDir, () => {});
-  assert.equal(again.copied, 0, 'то же видео второй раз не копируется');
+  assert.equal(again.copied, 0, 'same video is not copied a second time');
   assert.equal(again.same, 2);
 });
 
-test('файл, уже лежащий во «Входящих», не копируется сам в себя', async () => {
+test('file already in Inbox is not copied onto itself', async () => {
   const { inDir } = tree();
   writeFileSync(join(inDir, 'a.mp4'), 'x');
   const r = await copyVideos(collectVideos([inDir]), inDir, () => {});
@@ -52,7 +52,7 @@ test('файл, уже лежащий во «Входящих», не копир
   assert.deepEqual(readdirSync(inDir), ['a.mp4']);
 });
 
-test('окно: drop-зона во «Входящих», кнопка неактивна во время копирования, путь через webUtils', () => {
+test('window: drop zone in Inbox, button disabled during copy, path via webUtils', () => {
   const ui = readFileSync(new URL('../app/ui/app.js', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../app/ui/index.html', import.meta.url), 'utf8');
   const pre = readFileSync(new URL('../app/preload.cjs', import.meta.url), 'utf8');

@@ -1,7 +1,7 @@
-// Модель кадров для «свой ли это зверёк» (CLIP ViT-B/32, ONNX q8, ~89 МБ) → models/clip/.
-// Запускать перед `npm run dist`: установщик кладёт папку models рядом с приложением. В git модель не попадает.
-//   node scripts/fetch-model.mjs              — скачать с Hugging Face (Xenova/clip-vit-base-patch32)
-//   node scripts/fetch-model.mjs --from <dir> — взять уже скачанный vision_model_quantized.onnx из папки
+// Frame model for "is this my critter" (CLIP ViT-B/32, ONNX q8, ~89 MB) → models/clip/.
+// Run before `npm run dist`: the installer puts the models folder next to the app. The model is not committed to git.
+//   node scripts/fetch-model.mjs              — download from Hugging Face (Xenova/clip-vit-base-patch32)
+//   node scripts/fetch-model.mjs --from <dir> — take an already downloaded vision_model_quantized.onnx from a folder
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, renameSync, copyFileSync, createWriteStream, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';

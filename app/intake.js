@@ -1,6 +1,6 @@
-// Видео, брошенные в окно или выбранные кнопкой, → папка «Входящие». Без Electron: тестируется обычным node --test.
-// Папки раскрываются целиком (служебные _папки, .скрытые и out с готовыми роликами пропускаются).
-// Файл с тем же именем не затирается; то же самое видео второй раз не копируется.
+// Videos dropped into the window or chosen with the button → the "Inbox" folder. No Electron: tested with plain node --test.
+// Folders are expanded in full (service _folders, .hidden ones and out with finished videos are skipped).
+// A file with the same name is not overwritten; the same video is not copied a second time.
 import { createReadStream, createWriteStream, existsSync, openSync, readSync, closeSync, readdirSync, statSync, renameSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
@@ -9,7 +9,7 @@ import { VIDEO_EXT } from './inbox.js';
 
 const SKIP_DIR = /^[_.]|^out$/i;
 
-/** Пути (файлы и папки) → список видеофайлов. */
+/** Paths (files and folders) → a list of video files. */
 export function collectVideos(paths, depth = 0) {
   const out = [];
   for (const p of paths ?? []) {
@@ -31,7 +31,7 @@ function head(file) {
 }
 const same = (a, b) => statSync(a).size === statSync(b).size && head(a) === head(b);
 
-/** Куда положить: то же видео уже лежит → null; имя занято другим → «имя (2).ext». */
+/** Where to put it: the same video is already there → null; the name is taken by another → "name (2).ext". */
 function target(src, inDir) {
   const ext = extname(src); const stem = basename(src, ext);
   for (let i = 1; i < 1000; i++) {
@@ -42,7 +42,7 @@ function target(src, inDir) {
   return null;
 }
 
-/** Копирует с прогрессом { done, total, name, bytesDone, bytesTotal }. Пишет во временный файл: разбор не возьмёт недокопированное. */
+/** Copies with progress { done, total, name, bytesDone, bytesTotal }. Writes to a temporary file: the analysis will not take a half-copied file. */
 export async function copyVideos(files, inDir, onProgress = () => {}) {
   const list = files.map((f) => ({ f, size: statSync(f).size }));
   const bytesTotal = list.reduce((s, x) => s + x.size, 0);
@@ -60,7 +60,7 @@ export async function copyVideos(files, inDir, onProgress = () => {}) {
       await pipeline(rs, createWriteStream(tmp));
       renameSync(tmp, dst);
       copied++;
-    } catch (e) { try { rmSync(tmp, { force: true }); } catch { /* нечего убрать */ } throw e; }
+    } catch (e) { try { rmSync(tmp, { force: true }); } catch { /* nothing to remove */ } throw e; }
     done++; tell(name, true);
   }
   return { copied, same, total: list.length };

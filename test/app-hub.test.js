@@ -1,4 +1,4 @@
-// Связка окна и пары: напарница отправляет видео, монтажёр монтирует и шлёт обратно готовое.
+// Window and pair: the user sends a video, the owner edits it and sends the finished one back.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
@@ -26,7 +26,7 @@ function setup() {
   return { root, shared, ownerPair, partnerPair, studio };
 }
 
-test('без пары — обычный монтаж, прогресс уходит в окно', async () => {
+test('without a pair — normal editing, progress goes to the window', async () => {
   const { root, studio } = setup();
   const ran = []; const sent = [];
   const hub = createHub({ studio: studio(null, ran), inDir: join(root, 'in'), root, send: (k, v) => sent.push(k) });
@@ -34,11 +34,11 @@ test('без пары — обычный монтаж, прогресс уход
   assert.equal(ran.length, 1);
   assert.equal(r.made.length, 1);
   assert.ok(sent.includes('progress'));
-  assert.deepEqual(await hub.afterBatch(r), [], 'без пары никому не шлёт');
+  assert.deepEqual(await hub.afterBatch(r), [], 'without a pair, sends to nobody');
   assert.deepEqual((await hub.poll()).got, []);
 });
 
-test('пара не завершена (код не введён) — монтирует сама, ничего не шлёт', async () => {
+test('pair not completed (code not entered) — edits by itself, sends nothing', async () => {
   const { root, ownerPair, studio } = setup();
   ownerPair.create();
   const ran = [];
@@ -48,7 +48,7 @@ test('пара не завершена (код не введён) — монти
   assert.deepEqual(await hub.afterBatch(r), []);
 });
 
-test('напарница → монтажёр → напарница: видео уходит, ролик и текст возвращаются под понятными именами', async () => {
+test('partner → editor → partner: video goes out, clip and text come back under clear names', async () => {
   const { root, ownerPair, partnerPair, studio } = setup();
   partnerPair.join(ownerPair.create().code);
   const ranPartner = []; const ranOwner = [];
@@ -59,7 +59,7 @@ test('напарница → монтажёр → напарница: видео
   const src = join(root, 'поссум ночью.mp4'); writeFileSync(src, Buffer.alloc(2000, 3));
   const r = await partner.batch([src]);
   assert.equal(r.sent, true);
-  assert.equal(ranPartner.length, 0, 'напарница сама не монтирует');
+  assert.equal(ranPartner.length, 0, 'partner does not edit by itself');
   assert.deepEqual(r.made, []);
 
   const got = await owner.poll();
@@ -76,10 +76,10 @@ test('напарница → монтажёр → напарница: видео
   const dest = join(partnerRoot, 'Готово', 'От монтажёра');
   assert.deepEqual(readdirSync(dest).sort(), ['2026-11-16_day.mp4', '2026-11-16_day.txt']);
   assert.equal(readFileSync(join(dest, '2026-11-16_day.txt'), 'utf8'), 'текст');
-  assert.deepEqual(await partner.afterBatch(r), [], 'напарница готовое назад не шлёт');
+  assert.deepEqual(await partner.afterBatch(r), [], 'partner does not send finished items back');
 });
 
-test('сломанная настройка пары не роняет окно', async () => {
+test('broken pair setting does not crash the window', async () => {
   const { root, studio } = setup();
   const s = studio(null, []); s.pairing = () => { throw new Error('нет папки'); };
   const hub = createHub({ studio: s, inDir: join(root, 'in'), root });

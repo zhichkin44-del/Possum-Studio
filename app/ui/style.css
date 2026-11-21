@@ -8,7 +8,7 @@ body { margin: 0; display: flex; height: 100vh; background: var(--bg); color: va
 button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
 button:hover { border-color: var(--accent); }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-/* выключенная кнопка — явно серая, даже главная */
+/* a disabled button — clearly gray, even the main one */
 button:disabled, button.primary:disabled { background: var(--bg); color: var(--muted); border: 1px dashed var(--line); cursor: default; }
 button:disabled:hover { border-color: var(--line); }
 .moments { margin: 6px 0 10px; }
@@ -34,7 +34,7 @@ header h1 { margin: 0; font-size: 22px; flex: 1; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .hint, .empty { color: var(--muted); }
 .error { background: color-mix(in srgb, var(--err) 12%, transparent); color: var(--err); padding: 10px 14px; border-radius: 8px; margin: 10px 0; }
-/* спокойная пометка: не ошибка, а напоминание */
+/* a calm note: not an error, but a reminder */
 .note { border-left: 3px solid var(--warn); background: var(--panel); color: var(--ink); padding: 10px 14px; border-radius: 8px; margin: 10px 0; }
 .jobs { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
 .jobs li { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
@@ -98,7 +98,7 @@ details.card summary { cursor: pointer; color: var(--muted); }
 .pets .picked { font-size: 14px; font-weight: 600; }
 .pets li.no .picked { color: var(--err); }
 
-/* перетаскивание во «Входящие» */
+/* drag-and-drop into "Inbox" */
 .drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 18px; margin: 8px 0 12px; border: 2px dashed var(--line); border-radius: 12px; text-align: center; color: var(--muted); }
 .drop b { color: var(--ink); font-weight: 600; }
 body.dragging .drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -108,7 +108,7 @@ body.dragging .drop b::before { content: '⬇ '; }
 .shots li { display: grid; gap: 2px; }
 .shots li.have b { color: var(--ok); }
 
-/* «Идеи и советы» */
+/* "Ideas and advice" */
 .cats { flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .cats button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 details.card.idea summary { color: var(--ink); font-weight: 600; }
@@ -128,19 +128,19 @@ details.card.idea summary { color: var(--ink); font-weight: 600; }
 #askQ { flex: 1; min-width: 0; }
 @media (max-width: 700px) { .bw { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { #askForm { flex-wrap: wrap; } #askForm button { width: 100%; } }
-/* узкое окно: меню — полоса сверху с прокруткой вбок, экран на всю ширину */
+/* narrow window: the menu — a strip at the top scrolling sideways, the screen full width */
 @media (max-width: 500px) {
   body { flex-direction: column; }
   .side { width: auto; flex-direction: row; flex-wrap: wrap; padding: 6px 8px; gap: 4px; border-right: none; border-bottom: 1px solid var(--line); flex-shrink: 0; }
   .side button { white-space: nowrap; padding: 5px 9px; font-size: 14px; }
   .side .brand, .side .status, .side .pairline { display: none; }
   main { padding: 14px 12px; }
-  /* шапка экрана: заголовок сверху, кнопки ровным рядом на всю ширину */
+  /* screen header: title on top, buttons in an even row across the full width */
   header { flex-wrap: wrap; }
   header h1 { flex-basis: 100%; }
   header .row { width: 100%; flex-wrap: nowrap; }
   header .row button { flex: 1; padding: 8px 6px; }
-  /* имя видео целиком, в две строки, а не обрезанное */
+  /* the full video name, in two lines, not cut off */
   .jobs li { flex-wrap: wrap; gap: 6px 10px; }
   .jobs li .name, .pets .name { white-space: normal; overflow-wrap: anywhere; }
 }

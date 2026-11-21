@@ -1,4 +1,4 @@
-// Тестовый мир: поддельный Telegram, поддельный монтаж, поддельные часы, «напарница» и «Саша» как пользователи.
+// Test world: fake Telegram, fake editing, fake clock, "the user" and "The owner" as users.
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,7 +42,7 @@ export class FakeTelegram {
     writeFileSync(dest, `fake-video:${fileId}`);
     return dest;
   }
-  // что видит пользователь
+  // what the user sees
   to(chat) { return this.log.filter((r) => r.chat === chat); }
 }
 

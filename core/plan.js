@@ -1,7 +1,7 @@
-// План монтажа под площадку: лучший момент в первые 1,5 с (или тизер), 1–3 звука, наезд, подписи RU+EN.
+// Edit plan for a platform: the best moment in the first 1.5 s (or a teaser), 1–3 sounds, a push-in, RU+EN captions.
 export const PROFILES = {
   youtube: { label: 'YouTube Shorts', maxLen: 30, music: true },
-  tiktok: { label: 'TikTok', maxLen: 20, music: false }, // тренд-звук ставится в самом TikTok
+  tiktok: { label: 'TikTok', maxLen: 20, music: false }, // the trending sound is added in TikTok itself
   reels: { label: 'Instagram Reels', maxLen: 15, minLen: 12, music: true },
 };
 export const HOOK_MAX = 1.5;
@@ -22,7 +22,7 @@ export function makePlan(analysis, profileName, { music = null, captions = {} } 
     segments = [{ from: r2(start), len: r2(L) }];
     hookAt = best - start;
   } else {
-    // лучший момент далеко — короткий тизер в начало, потом сам ролик
+    // the best moment is far away — a short teaser at the start, then the video itself
     const tlen = Math.min(1.2, dur);
     const tFrom = clamp(best - 0.5, 0, dur - tlen);
     const mainLen = Math.min(prof.maxLen - tlen, dur);
@@ -32,7 +32,7 @@ export function makePlan(analysis, profileName, { music = null, captions = {} } 
   }
   const total = r2(segments.reduce((s, x) => s + x.len, 0));
 
-  // звуки: «поп» на хук, потом прыжки (свист) и писк (пружинка), не чаще раза в 2 с, не больше 3
+  // sounds: a "pop" on the hook, then jumps (whistle) and squeaks (spring), no more than once every 2 s, no more than 3
   const sfx = [{ at: r2(Math.max(0, hookAt - 0.1)), name: 'pop' }];
   const kindSfx = { move: 'whoosh', squeak: 'boing' };
   let offset = 0;

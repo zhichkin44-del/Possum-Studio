@@ -1,4 +1,4 @@
-// Одна точка выкладки для бота и приложения: обновляет токен, выкладывает, пишет в журнал, не выкладывает дважды.
+// A single publishing point for the bot and the app: refreshes the token, publishes, writes to the log, never publishes twice.
 import { google, tiktok } from '../oauth.js';
 import { uploadYoutube } from './youtube.js';
 import { draftTiktok } from './tiktok.js';
@@ -23,7 +23,7 @@ export async function publishOne(platform, manifest, { settings, log, fetchImpl 
       const k = settings.tiktok ?? {};
       if (!k.refreshToken) throw new Error('TikTok не подключён: Настройки → «Войти в TikTok»');
       const t = await tiktok.refresh({ fetchImpl, clientKey: k.clientKey, clientSecret: k.clientSecret, refreshToken: k.refreshToken });
-      // TikTok меняет refresh-токен: старый уже не работает, сохраняем до загрузки
+      // TikTok changes the refresh token: the old one no longer works, so we save before uploading
       if (t.refresh_token && t.refresh_token !== k.refreshToken) onRefreshToken?.(t.refresh_token);
       res = await draftTiktok({ file, accessToken: t.access_token, fetchImpl, confirm });
     } else if (platform === 'instagram') {
@@ -35,7 +35,7 @@ export async function publishOne(platform, manifest, { settings, log, fetchImpl 
     if (res.id && log) log.add({ file, platform, id: res.id, url: res.url });
     return res;
   } catch (e) {
-    // в сообщениях об ошибках не должно остаться ни одного ключа
+    // no key may remain in error messages
     throw new Error(redactSecrets(e.message, settings));
   }
 }

@@ -1,4 +1,4 @@
-// Регрессии по находкам «скептика-инженера» и «продюсера» (перепроверены по коду до правки).
+// Regressions from the findings of the "engineer-skeptic" and the "producer" (re-checked against the code before the fix).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -19,22 +19,22 @@ async function ready() {
   return w;
 }
 
-test('скачивание, которое «зависло» посреди файла, обрывается по таймауту и не вешает бота', async () => {
+test('a download that "froze" mid-file is aborted by timeout and does not hang the bot', async () => {
   const s = http.createServer((req, res) => {
     if (req.url.includes('/getFile')) { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ ok: true, result: { file_path: 'v.mp4' } })); }
-    res.setHeader('content-type', 'video/mp4'); res.write(Buffer.alloc(1000)); // и больше ничего: тело не закрывается
+    res.setHeader('content-type', 'video/mp4'); res.write(Buffer.alloc(1000)); // and nothing more: the body is never closed
   });
   await new Promise((r) => s.listen(0, '127.0.0.1', r));
   const TOKEN = '123456:HANG-TOKEN-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123';
   const tg = createTelegram({ token: TOKEN, apiBase: `http://127.0.0.1:${s.address().port}` });
   const dest = join(mkdtempSync(join(tmpdir(), 'possum-hang-')), 'v.mp4');
   const t0 = Date.now();
-  await assert.rejects(() => tg.download('F', dest, { timeoutMs: 400 }), (e) => /таймаут/.test(e.message) && !e.message.includes(TOKEN));
+  await assert.rejects(() => tg.download('F', dest, { timeoutMs: 400 }), (e) => /timeout/.test(e.message) && !e.message.includes(TOKEN));
   assert.ok(Date.now() - t0 < 3000);
   s.closeAllConnections?.(); s.close();
 });
 
-test('«сломанная» HTML-разметка не теряет сообщение: уходит простым текстом', async () => {
+test('"broken" HTML markup does not lose the message: it is sent as plain text', async () => {
   const calls = [];
   const s = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
@@ -51,23 +51,23 @@ test('«сломанная» HTML-разметка не теряет сообщ�
   s.close();
 });
 
-test('тик во время долгой отправки ролика не создаёт вторую выдачу (напарница получает видео один раз)', async () => {
+test('a tick during a long clip send does not create a second delivery (partner gets the video once)', async () => {
   const w = await ready();
   let release; const gate = new Promise((r) => { release = r; });
   const orig = w.tg.sendVideo.bind(w.tg);
   w.tg.sendVideo = async (...a) => { await gate; return orig(...a); };
   await w.partner.video(); w.clock.advance(100_000);
-  const building = w.bot.tick(); // запускает сборку и выдачу (выдача застряла на sendVideo)
+  const building = w.bot.tick(); // starts the build and the delivery (the delivery is stuck on sendVideo)
   await building;
-  await new Promise((r) => setTimeout(r, 30)); // сборка пошла, видео ещё «отправляется»
+  await new Promise((r) => setTimeout(r, 30)); // the build has started, the video is still "being sent"
   const quick = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('тик завис: идёт вторая выдача')), 1500))]);
-  await quick(w.bot.tick()); await quick(w.bot.tick()); // тики во время долгой отправки не должны ждать её и дублировать
+  await quick(w.bot.tick()); await quick(w.bot.tick()); // ticks during a long send must not wait for it or duplicate it
   release(); await w.idle();
   assert.equal(w.partner.videos().length, 1);
   assert.equal(w.partner.texts().filter((t) => /^Готово!/.test(t)).length, 1);
 });
 
-test('напарница заблокировала бота (403): повторы останавливаются, Саша узнаёт один раз', async () => {
+test('partner blocked the bot (403): retries stop, owner is told once', async () => {
   const w = await ready();
   w.tg.sendMessage = async (chat, text, opts) => {
     if (chat === 222 && /Готово!/.test(text)) throw new Error('Telegram sendMessage: Forbidden: bot was blocked by the user 403');
@@ -81,7 +81,7 @@ test('напарница заблокировала бота (403): повтор
   assert.equal(n, 1);
 });
 
-test('«пока не выложила» не помечает ролик опубликованным', async () => {
+test('"not published yet" does not mark the clip as published', async () => {
   const w = await ready();
   await w.partner.video(); await w.afterQuiet();
   await w.partner.say('пока не выложила, вечером');
@@ -91,42 +91,42 @@ test('«пока не выложила» не помечает ролик опу
   assert.equal(w.store.data.posts[0].status, 'posted');
 });
 
-test('итоги недели догоняются, если ноутбук был выключен в воскресенье', async () => {
+test('week results catch up if the laptop was off on Sunday', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
-  await w.at(at('2026-11-23', '10:00')); // понедельник после воскресенья 22.11
+  await w.at(at('2026-11-23', '10:00')); // Monday after Sunday 22.11
   assert.match(w.partner.last(), /Итоги недели/);
   const n = w.partner.texts().length;
   await w.at(at('2026-11-23', '12:00'));
-  assert.equal(w.partner.texts().length, n, 'не повторяется');
-  await w.at(at('2026-11-27', '10:00')); // пятница — уже поздно догонять
+  assert.equal(w.partner.texts().length, n, 'does not repeat');
+  await w.at(at('2026-11-27', '10:00')); // Friday — too late to catch up
   assert.equal(w.partner.texts().length, n);
 });
 
-test('часовой пояс подхватывается без перезапуска (config читается каждый раз)', async () => {
+test('time zone is picked up without restart (config is read every time)', async () => {
   const w = makeWorld({ config: { tzOffsetHours: 7 } });
   await w.register(); await w.partner.press('Поняла');
-  await w.at('2026-11-15T12:00:00Z'); // 19:00 по UTC+7 — ещё рано
+  await w.at('2026-11-15T12:00:00Z'); // 19:00 at UTC+7 — still early
   assert.doesNotMatch(w.partner.last(), /Задание на сегодня/);
-  w.config.tzOffsetHours = 8; // ноутбук сменил пояс: теперь 20:00
+  w.config.tzOffsetHours = 8; // the laptop changed its time zone: now 20:00
   await w.at('2026-11-15T12:00:30Z');
   assert.match(w.partner.last(), /Задание на сегодня/);
 });
 
-test('битый state.json восстанавливается из последней хорошей копии: напарница остаётся подключённой', () => {
+test('broken state.json is restored from the last good copy: partner stays connected', () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-rec-'));
   const p = join(dir, 'state.json');
   const s1 = createStore(p);
   s1.data.partnerId = 222; s1.data.ownerId = 111; s1.save(); s1.data.x = 2; s1.save();
-  writeFileSync(p, '{"v":1,"partnerId"'); // оборванная запись
+  writeFileSync(p, '{"v":1,"partnerId"'); // truncated write
   const s2 = createStore(p);
   assert.equal(s2.data.partnerId, 222);
   assert.equal(s2.data.ownerId, 111);
   assert.ok(existsSync(`${p}.corrupt`));
-  assert.ok(JSON.parse(readFileSync(p, 'utf8')).partnerId === 222, 'после восстановления файл снова целый');
+  assert.ok(JSON.parse(readFileSync(p, 'utf8')).partnerId === 222, 'after restoring the file is whole again');
 });
 
-test('повтор перенесённого задания — короткое напоминание, а не вся карточка', async () => {
+test('repeat of a postponed task — a short reminder, not the whole card', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
   await w.at(at('2026-11-15', '19:30')); await w.partner.press('Потом');
@@ -137,7 +137,7 @@ test('повтор перенесённого задания — коротко�
   assert.deepEqual(w.partner.labels(), ['Снимаю', 'Потом', 'Он спит', 'Не поняла задание']);
 });
 
-test('пост: пояснения для напарницы — один файл на все площадки, подпись копировать; в задании «телефон стоймя»', async () => {
+test('post: explanations for the partner — one file for all platforms, copy the caption; in the task "phone upright"', async () => {
   const w = await ready();
   assert.match(w.partner.all(), /Телефон держи стоймя/);
   await w.partner.video(); await w.afterQuiet();
@@ -145,7 +145,7 @@ test('пост: пояснения для напарницы — один фай
   assert.match(w.partner.all(), /скопируй нужную/);
 });
 
-test('пауза называет дату и день недели, а не только день', async () => {
+test('pause names the date and weekday, not just the day', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
   await w.at(at('2026-11-15', '19:30'));
@@ -153,28 +153,28 @@ test('пауза называет дату и день недели, а не т�
   assert.match(w.partner.last(), /до 22 ноября \(воскресенье\)/);
 });
 
-test('подписи на площадках разные; в Instagram не больше 5 хештегов; у каждого задания есть заставка RU+EN', () => {
+test('captions differ across platforms; Instagram has no more than 5 hashtags; every task has a RU+EN intro', () => {
   const pet = { im: 'Пип', ro: 'Пипа', da: 'Пипу', vi: 'Пипа', tv: 'Пипом', en: 'Pip' };
   for (const t of TASKS) {
     const c = buildCaptions({ task: t, pet, n: 0 });
-    assert.notEqual(c.yt_ru.caption, c.tiktok.caption, `${t.id}: YouTube и TikTok не дублируются`);
-    assert.notEqual(c.tiktok.caption, c.reels.caption, `${t.id}: TikTok и Reels не дублируются`);
+    assert.notEqual(c.yt_ru.caption, c.tiktok.caption, `${t.id}: YouTube and TikTok are not duplicated`);
+    assert.notEqual(c.tiktok.caption, c.reels.caption, `${t.id}: TikTok and Reels are not duplicated`);
     assert.notEqual(c.yt_ru.comment, c.tiktok.comment);
     assert.ok(c.reels.hashtags.length <= 5, `${t.id}: ${c.reels.hashtags.length}`);
-    assert.ok(t.hook?.ru && t.hook?.en, `${t.id}: заставка`);
-    assert.ok(t.hook.ru.length <= 18, `${t.id}: заставка короткая`);
-    assert.ok(t.pitch, `${t.id}: описание в карточке`);
+    assert.ok(t.hook?.ru && t.hook?.en, `${t.id}: intro`);
+    assert.ok(t.hook.ru.length <= 18, `${t.id}: intro is short`);
+    assert.ok(t.pitch, `${t.id}: description in the card`);
   }
 });
 
-test('проверка качества ловит громкость мимо −14 LUFS и «мёртвый» хук', () => {
+test('quality check catches loudness off −14 LUFS and a "dead" hook', () => {
   const ok = { duration: 14, width: 1080, height: 1920, hasAudio: true, firstFrameLuma: 80, blackRatio: 0, loudness: -14.3, hookMotion: 3 };
   assert.deepEqual(qualityIssues(ok), []);
   assert.ok(qualityIssues({ ...ok, loudness: -23 }).some((i) => /громкость/.test(i)));
   assert.ok(qualityIssues({ ...ok, hookMotion: 0.02 }).some((i) => /первые 1,5 с/.test(i)));
 });
 
-test('скриншот статистики уходит Саше (обещание «передала Саше» выполняется)', async () => {
+test('stats screenshot goes to the owner (the promise "passed to the owner" is kept)', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
   const before = w.tg.to(111).filter((r) => r.kind === 'photo').length;
@@ -183,14 +183,14 @@ test('скриншот статистики уходит Саше (обещан�
   assert.match(w.partner.last(), /передала Саше/);
 });
 
-test('цифры из текста: «YouTube EN 12 3410» не склеивается в 123410; «3 410» читается как 3410', async () => {
+test('numbers from text: "YouTube EN 12 3410" is not joined into 123410; "3 410" is read as 3410', async () => {
   const { parseStatsText } = await import('../src/stats.js');
   assert.equal(parseStatsText('YouTube EN 3 410 +21')[0].views, 3410);
   assert.equal(parseStatsText('YouTube EN 12 3410')[0].views, 12);
   assert.equal(parseStatsText('TikTok 5200')[0].views, 5200);
 });
 
-test('«не вялый» не останавливает задания', async () => {
+test('"not lethargic" does not stop tasks', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
   await w.partner.say('Пип сегодня не вялый, бодрый');
@@ -198,10 +198,10 @@ test('«не вялый» не останавливает задания', async
   assert.equal(w.store.data.partner.pausedUntil, null);
 });
 
-test('итоги по ручным цифрам не обещают «лучший ролик» и не показывают кнопку «по роликам»', async () => {
+test('results from manual numbers do not promise "best clip" and do not show the "by clips" button', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
-  await w.at('2026-11-21T10:00:00+07:00'); // суббота: цифры присланы заранее
+  await w.at('2026-11-21T10:00:00+07:00'); // Saturday: the figures were sent in advance
   await w.partner.say('YouTube EN 3410 +21\nTikTok 5200 +34');
   await w.at('2026-11-22T19:00:00+07:00');
   assert.match(w.partner.last(), /YouTube EN/);
@@ -209,7 +209,7 @@ test('итоги по ручным цифрам не обещают «лучши
   assert.ok(!w.partner.labels().includes('Покажи по роликам'));
 });
 
-test('/код у Саши даёт ссылку t.me, если известно имя бота; знакомство говорит, зачем ей видео и цифры', async () => {
+test('/code for the owner gives a t.me link if the bot name is known; the introduction says why the partner needs the video and numbers', async () => {
   const w = makeWorld({ config: { botUsername: 'possum_test_bot' } });
   await w.register();
   await w.owner.say('/код');
@@ -217,10 +217,10 @@ test('/код у Саши даёт ссылку t.me, если известно 
   assert.match(w.partner.texts()[0], /только для этого проекта/);
 });
 
-test('цифры, присланные в понедельник после итогов, относятся к прошедшей неделе, а не к новой', async () => {
+test('numbers sent on Monday after the results belong to the past week, not the new one', async () => {
   const w = makeWorld();
   await w.register(); await w.partner.press('Поняла');
-  await w.at('2026-11-22T19:00:00+07:00'); // итоги недели 47
+  await w.at('2026-11-22T19:00:00+07:00'); // week 47 totals
   await w.at('2026-11-23T09:00:00+07:00');
   await w.partner.say('TikTok 5200 +34');
   assert.equal(w.store.data.stats.at(-1).week, '2026-W47');

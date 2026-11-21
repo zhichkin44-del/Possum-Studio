@@ -1,4 +1,4 @@
-// Наставник: каталог без ключа, проверка ответа нейросети, имя питомца не уходит наружу.
+// Mentor: catalog without a key, checking the neural network's answer, the pet's name never leaves.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -10,9 +10,9 @@ import { setVault } from '../core/settings.js';
 import { fakeVault } from './vault.js';
 
 setVault(fakeVault());
-const NAME = 'Тошка'; // поддельное имя для теста
+const NAME = 'Тошка'; // fake name for the test
 
-test('имя питомца заменяется в любом падеже, чужие слова не трогаются', () => {
+test('the pet name is replaced in any case, foreign words are left alone', () => {
   assert.equal(redactNames('Тошка спит, дали Тошке банан, с Тошкой', [NAME]), 'зверёк спит, дали зверёк банан, с зверёк');
   assert.equal(redactNames('тошнота', [NAME]), 'тошнота');
   assert.equal(redactNames('Мася любит масло, Масечка и Масю', ['Мася']), 'зверёк любит масло, зверёк и зверёк');
@@ -20,7 +20,7 @@ test('имя питомца заменяется в любом падеже, ч�
   assert.equal(redactNames('без имён', []), 'без имён');
 });
 
-test('проверка ответа: свет, одежда, еда; отрицание не считается советом', () => {
+test('answer check: light, clothing, food; a negation is not counted as advice', () => {
   assert.equal(unsafe('Включите свет поярче.'), 'свет');
   assert.equal(unsafe('Наденьте ему костюм пирата.'), 'одежда');
   assert.equal(unsafe('Дайте кусочек шоколада.'), 'еда');
@@ -28,7 +28,7 @@ test('проверка ответа: свет, одежда, еда; отриц�
   assert.equal(unsafe('Костюмы не надевайте — лучше мешочек.'), '');
 });
 
-test('проверка ответа: «вместо» и «безопасно» не прячут опасный совет', () => {
+test('answer check: "instead of" and "safe" do not hide dangerous advice', () => {
   assert.equal(unsafe('Вместо ужина дайте шоколад.'), 'еда');
   assert.equal(unsafe('Можно шапочку, это безопасно — вместо пледа.'), 'одежда');
   assert.equal(unsafe('Шоколад нельзя, но можно чуть-чуть.'), 'еда');
@@ -50,13 +50,13 @@ test('проверка ответа: «вместо» и «безопасно» 
   assert.equal(unsafe(fallback('можно надеть шапочку?').answer), '');
 });
 
-test('без нейросети: шапочка и шоколад — отказ, а не список еды', () => {
+test('without the neural net: hat and chocolate — refusal, not a food list', () => {
   assert.match(fallback('можно ему шапочку?').answer, /^Нарядить|нет/i);
   assert.deepEqual(fallback('можно ему шапочку?').ideaIds, ['season', 'pouch']);
   assert.match(fallback('дать кусочек шоколада?').answer, /^Нет, это давать нельзя/);
 });
 
-test('без нейросети: сначала опасное, потом тема', () => {
+test('without the neural net: danger first, then the topic', () => {
   assert.match(fallback('можно дать шоколадку?').answer, /^Нет, это давать нельзя/);
   assert.deepEqual(fallback('хочу нарядить в костюм').ideaIds, ['season', 'pouch']);
   assert.ok(fallback('чем угостить с тарелочки').ideaIds.includes('plate'));
@@ -66,7 +66,7 @@ test('без нейросети: сначала опасное, потом те�
   assert.equal(fallback('привет').ideaIds.length, 0);
 });
 
-test('нейросеть: имя не уходит, ответ без имени, плохой ответ и ошибка — каталог', async () => {
+test('neural net: name is not sent, answer without name, bad answer and error — catalog', async () => {
   let sent = '';
   const good = { enabled: true, async json({ content }) { sent = content; return { answer: `${NAME} любит яблоко — дайте кусочек.`, ideaIds: ['plate', 'нет-такой'] }; } };
   const r = await ask('Чем угостить Тошку?', { ai: good, history: [{ q: `${NAME} спит`, a: 'ок' }], petNames: [NAME] });
@@ -83,7 +83,7 @@ test('нейросеть: имя не уходит, ответ без имени
   assert.equal((await ask('чем угостить', { ai: null })).source, 'catalog');
 });
 
-test('нейросеть советует опасное под «вместо»/«безопасно» — ответ из каталога, не её', async () => {
+test('neural net advises danger under "instead of"/"safe" — answer from the catalog, not its own', async () => {
   for (const bad of ['Вместо ужина дайте шоколад.', 'Можно шапочку, это безопасно.', 'Свитер безопасно, наденьте.', 'Виноград — не нужно бояться, он полезен.', 'Виноград не вредит, не запрещено.', 'Дай ему шоколад — вредный, но ничего.', 'Дай виноград, он ядовитый, но это мелочь.', 'Шоколад — вредный, но дай кусочек.']) {
     const ai = { enabled: true, async json() { return { answer: bad, ideaIds: ['plate'] }; } };
     const r = await ask('чем угостить и во что нарядить?', { ai });
@@ -93,7 +93,7 @@ test('нейросеть советует опасное под «вместо»
   }
 });
 
-test('studio.mentor берёт имена из настроек и не отправляет их; studio.ideas отдаёт каталог', async () => {
+test('studio.mentor takes names from settings and does not send them; studio.ideas returns the catalog', async () => {
   const root = mkdtempSync(join(tmpdir(), 'possum-mentor-'));
   mkdirSync(join(root, 'cfg'), { recursive: true });
   writeFileSync(join(root, 'cfg', 'settings.json'), JSON.stringify({ petNames: [NAME] }));

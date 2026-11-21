@@ -1,4 +1,4 @@
-// Этап 2, шаг 4: пара «Монтажёр ↔ напарница» через общую папку.
+// Stage 2, step 4: the "owner ↔ user" pair via a shared folder.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, truncateSync } from 'node:fs';
@@ -16,17 +16,17 @@ function setup() {
   return { root, shared, owner, partner, tick: (ms) => { t += ms; } };
 }
 
-test('код из 6 цифр; в общей папке только хэш с солью', () => {
+test('6-digit code; only a salted hash in the shared folder', () => {
   const { owner, shared } = setup();
   const { code } = owner.create();
   assert.match(code, /^\d{6}$/);
   const raw = readFileSync(join(shared, 'pair.json'), 'utf8');
-  assert.ok(!raw.includes(code), 'кода в открытом виде нет');
+  assert.ok(!raw.includes(code), 'no code in plain text');
   assert.equal(owner.status().paired, false);
   assert.equal(owner.status().waiting, true);
 });
 
-test('напарница вводит код → пара; неверный код — понятная ошибка и счётчик попыток', () => {
+test('partner enters the code → pair; wrong code — clear error and attempt counter', () => {
   const { owner, partner } = setup();
   const { code } = owner.create();
   const wrong = code === '000000' ? '111111' : '000000';
@@ -37,7 +37,7 @@ test('напарница вводит код → пара; неверный ко
   assert.throws(() => partner.join(code), /уже создана/);
 });
 
-test('пять неверных попыток — код сгорел', () => {
+test('five wrong attempts — the code burns out', () => {
   const { owner, partner } = setup();
   const { code } = owner.create();
   const wrong = code === '000000' ? '111111' : '000000';
@@ -45,14 +45,14 @@ test('пять неверных попыток — код сгорел', () => {
   assert.throws(() => partner.join(code), /Слишком много попыток/);
 });
 
-test('код живёт 24 часа', () => {
+test('code lives 24 hours', () => {
   const { owner, partner, tick } = setup();
   const { code } = owner.create();
   tick(24 * 3600 * 1000 + 1);
   assert.throws(() => partner.join(code), /устарел/);
 });
 
-test('роли: код создаёт только монтажёр, вводит только напарница; без пары send запрещён', async () => {
+test('roles: only the editor creates the code, only the partner enters it; without a pair send is forbidden', async () => {
   const { owner, partner, root } = setup();
   assert.throws(() => partner.create(), /монтажёр/);
   owner.create();
@@ -61,7 +61,7 @@ test('роли: код создаёт только монтажёр, вводи�
   await assert.rejects(partner.send(f), /соедините/);
 });
 
-test('напарница → монтажёр: файл доходит целым, повторно не забирается; пишет каждый только в свой ящик', async () => {
+test('partner → editor: file arrives whole, not picked up again; each writes only to their own mailbox', async () => {
   const { owner, partner, root, shared } = setup();
   partner.join(owner.create().code);
   const f = join(root, 'видео 1.mp4'.split('\\').pop()); writeFileSync(f, Buffer.alloc(50_000, 7));
@@ -70,17 +70,17 @@ test('напарница → монтажёр: файл доходит целы�
   assert.deepEqual(readdirSync(shared).sort(), ['pair.json', 'partner']);
   const meta = JSON.parse(readFileSync(join(shared, 'partner', `${sent.stored}.meta.json`), 'utf8'));
   assert.deepEqual(Object.keys(meta).sort(), ['at', 'name', 'sha256', 'size', 'stored']);
-  assert.ok(!JSON.stringify(meta).includes(root), 'полного пути нет');
+  assert.ok(!JSON.stringify(meta).includes(root), 'no full path');
   const dest = join(root, 'Входящие');
   const r = await owner.receive(dest);
   assert.equal(r.got.length, 1);
   assert.equal(readFileSync(r.got[0]).length, 50_000);
-  assert.equal((await owner.receive(dest)).got.length, 0, 'второй раз не забирает');
+  assert.equal((await owner.receive(dest)).got.length, 0, 'does not pick up a second time');
   await partner.send(f);
-  assert.equal(readdirSync(join(shared, 'partner')).length, 2, 'тот же файл второй раз не копируется');
+  assert.equal(readdirSync(join(shared, 'partner')).length, 2, 'the same file is not copied a second time');
 });
 
-test('недокачанный файл (размер не сошёлся) ждёт, потом забирается', async () => {
+test('incompletely copied file (size mismatch) waits, then is picked up', async () => {
   const { owner, partner, root, shared } = setup();
   partner.join(owner.create().code);
   const f = join(root, 'a.mp4'); writeFileSync(f, Buffer.alloc(10_000, 1));
@@ -95,7 +95,7 @@ test('недокачанный файл (размер не сошёлся) жд�
   assert.ok(!readdirSync(dest).some((x) => x.endsWith('.part')));
 });
 
-test('Монтажёр → напарница: готовый ролик; одинаковые имена не затирают друг друга', async () => {
+test('Editor → partner: finished clip; identical names do not overwrite each other', async () => {
   const { owner, partner, root } = setup();
   partner.join(owner.create().code);
   const a = join(root, 'x1'); const b = join(root, 'x2');
@@ -111,12 +111,12 @@ test('Монтажёр → напарница: готовый ролик; оди
   assert.ok(existsSync(r.got[0]) && existsSync(r.got[1]));
 });
 
-test('safeName убирает путь и опасные символы', () => {
+test('safeName strips the path and dangerous characters', () => {
   assert.equal(safeName('C:\\a\\b:c?.mp4'.replace(/\\/g, '/')), 'b_c_.mp4');
   assert.equal(safeName('../../x.mp4'), 'x.mp4');
 });
 
-test('send с именем: напарница получает ролик под понятным именем, а не video.mp4', async () => {
+test('send with a name: partner gets the clip under a clear name, not video.mp4', async () => {
   const { owner, partner, root } = setup();
   partner.join(owner.create().code);
   const { mkdirSync } = await import('node:fs');

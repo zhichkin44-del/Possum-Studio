@@ -1,4 +1,4 @@
-// Где в ролике самое интересное: прыжки (всплески движения), писк (всплески звука), темнота, вспышки.
+// Where the most interesting moments in the video are: jumps (motion spikes), squeaks (sound spikes), darkness, flashes.
 const mean = (a) => (a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0);
 const median = (a) => {
   if (!a.length) return 0;
@@ -7,7 +7,7 @@ const median = (a) => {
 };
 const std = (a) => { const m = mean(a); return Math.sqrt(mean(a.map((x) => (x - m) ** 2))); };
 
-/** Группы подряд идущих индексов, где pred(i); от каждой — середина самого высокого плато. */
+/** Groups of consecutive indices where pred(i) holds; from each — the middle of the highest plateau. */
 function groupPeaks(values, pred, step) {
   const out = [];
   for (let i = 0; i < values.length;) {
@@ -45,7 +45,7 @@ export function deriveMoments({ step = 0.25, motion = [], loud = [], luma = [] }
       .map((p) => ({ t: p.t, kind: 'squeak', score: Math.min(1, (p.value - lMed) / 30) })), 1, 6);
   const peaks = [...moves, ...squeaks].sort((a, b) => a.t - b.t);
 
-  // лучший момент: сильный прыжок, особенно если рядом писк
+  // best moment: a strong jump, especially if a squeak is nearby
   let best = null;
   for (const m of moves) {
     const s = m.score + (squeaks.some((q) => Math.abs(q.t - m.t) <= 1) ? 0.5 : 0);

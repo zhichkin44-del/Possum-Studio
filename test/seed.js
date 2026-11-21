@@ -1,4 +1,4 @@
-// Готовая «долгая жизнь»: напарница с историей на N дней — для теста дня 100.
+// Ready-made "long life": the user with a history of N days — for the day-100 test.
 import { TASK_IDS } from '../src/tasks.js';
 import { isoWeek } from '../src/stats.js';
 
@@ -25,7 +25,7 @@ export function seedLongHistory(world, days) {
       d.stats.push({ week: wk, platform, postId: post.id, views: Math.round(base * k), subs: Math.round(base * k / 80), source: 'manual' });
     }
   }
-  // последняя неделя перед воскресеньем — таблица по каналам
+  // the last week before Sunday — a table by channel
   const wk = isoWeek(now);
   for (const [platform, views, subs] of [['yt_en', 3410, 21], ['yt_ru', 1870, 9], ['tiktok', 5200, 34], ['reels', 960, 4]]) {
     d.stats.push({ week: wk, platform, postId: null, views, subs, source: 'manual', weekly: true });

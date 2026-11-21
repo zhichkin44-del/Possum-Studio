@@ -1,4 +1,4 @@
-// Ядро бота: чистая логика поверх интерфейсов tg / store / montage / clock. Запуск — src/index.js, тесты — test/.
+// Bot core: pure logic on top of the tg / store / montage / clock interfaces. Entry point: src/index.js; tests: test/.
 import { join } from 'node:path';
 import { mkdirSync, rmSync } from 'node:fs';
 import { TASKS, byId, renderTask, renderSimple, renderRepeat, nextPlanned } from './tasks.js';
@@ -17,27 +17,27 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
   const d = store.data;
   if (!Array.isArray(d.ownerJobs)) d.ownerJobs = [];
   const pet = config.pet;
-  const tzNow = () => Number(config.tzOffsetHours ?? 0); // читаем каждый раз: смена пояса ноутбука подхватывается без перезапуска
+  const tzNow = () => Number(config.tzOffsetHours ?? 0); // read on every call: a laptop time-zone change is picked up without a restart
   const dataDir = config.dataDir ?? 'data';
   const quietMs = config.quietMs ?? 90_000;
   const retryDelay = config.retryDelayMs ?? 0;
   const save = () => store.save();
 
-  // ---------- время ----------
+  // ---------- time ----------
   const nowMs = () => clock.now().getTime();
-  const local = () => new Date(nowMs() + tzNow() * 3_600_000); // UTC-поля = местное время
+  const local = () => new Date(nowMs() + tzNow() * 3_600_000); // UTC fields = local time
   const today = () => local().toISOString().slice(0, 10);
   const hmNow = () => local().toISOString().slice(11, 16);
   const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY);
   const iso = () => clock.now().toISOString();
 
-  // ---------- очереди: обновления и тики идут по одному; сборка роликов — своя очередь ----------
+  // ---------- queues: updates and ticks run one at a time; clip assembly has its own queue ----------
   let chain = Promise.resolve();
   let buildChain = Promise.resolve();
   const enqueue = (fn) => { const p = chain.then(fn); chain = p.catch(() => {}); return p; };
   const enqueueBuild = (fn) => { const p = buildChain.then(fn); buildChain = p.catch(() => {}); return p; };
 
-  // ---------- отправка ----------
+  // ---------- sending ----------
   async function send(chat, text, buttons) {
     try { return await tg.sendMessage(chat, text, { buttons }); } catch (e) { log(`send failed: ${e.message}`); return null; }
   }
@@ -51,7 +51,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     throw last;
   }
 
-  // ---------- напарница: состояние ----------
+  // ---------- partner: state ----------
   const newPartner = (id) => ({
     id, startedAt: iso(), lastSeenAt: iso(), introDone: false, pausedUntil: null, cadence: 'normal', awaiting: null, task: null,
     taskHistory: [], nudgesUnanswered: 0, lastNudgeDate: null, lastTaskDate: null, lastWeeklyDate: null, ideas: [], batch: null, cards: null,
@@ -67,7 +67,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
   };
   const record = (entry) => { S().taskHistory.push({ date: today(), clarified: false, ...entry }); };
 
-  // ---------- вход ----------
+  // ---------- entry ----------
   async function handleUpdate(u) {
     return enqueue(async () => {
       if (u.update_id !== undefined) {
@@ -99,7 +99,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     if (code && code === d.invites.owner && (!d.ownerId || d.ownerId === from)) {
       d.ownerId = from; save();
       await send(chat, T.ownerHello);
-      try { await tg.setMyCommands(OWNER_COMMANDS, { chatId: from }); } catch (e) { log(`menu failed: ${e.message}`); } // после приветствия: меню не задерживает ответ
+      try { await tg.setMyCommands(OWNER_COMMANDS, { chatId: from }); } catch (e) { log(`menu failed: ${e.message}`); } // after the greeting: the menu does not delay the reply
       return;
     }
     if (code && code === d.invites.partner && (!d.partnerId || d.partnerId === from)) {
@@ -115,7 +115,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await send(chat, T.closedBot);
   }
 
-  // ---------- Саша ----------
+  // ---------- the owner ----------
   async function onOwner(chat, text, m = {}) {
     if (m.video || m.video_note || (m.document?.mime_type ?? '').startsWith('video/')) return onOwnerVideo(chat, m);
     if (/^\/(status|статус)/i.test(text)) return void (await send(chat, statusText()));
@@ -126,7 +126,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await send(chat, studio ? T.ownerHelpStudio : T.ownerHelp);
   }
 
-  // ----- Саша присылает своё видео: три монтажа, совет, выкладка только по его кнопке -----
+  // ----- the owner sends his own video: three edits, advice, publishing only by his button -----
   const OWNER_PLAT = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
   const jobButtons = (id) => [
     [btn('Выложить YouTube', `o:pub:${id}:youtube`), btn('В черновики TikTok', `o:pub:${id}:tiktok`)],
@@ -134,7 +134,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     [btn('Переделать', `o:redo:${id}`)],
   ];
   const job = (id) => d.ownerJobs.find((j) => j.id === id);
-  const publishing = new Set(); // «id|площадка», что выкладывается сейчас
+  const publishing = new Set(); // "id|platform" being published right now
 
   async function onOwnerVideo(chat, m) {
     if (!studio) return void (await send(chat, T.ownerNoStudio));
@@ -185,14 +185,14 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     if (j.status !== 'ready' || !j.dir) return void (await send(chat, T.ownerNotReady));
     const plats = plat === 'all' ? Object.keys(OWNER_PLAT) : OWNER_PLAT[plat] ? [plat] : [];
     if (!plats.length) return;
-    // первое нажатие только спрашивает; выкладка — после «Да, выложить»
+    // the first press only asks; publishing happens after "Yes, publish"
     if (act === 'pub') {
       return void (await send(chat, `Точно выложить: ${plats.map((p) => OWNER_PLAT[p]).join(', ')}?`,
         [[btn('Да, выложить', `o:ok:${id}:${plat}`), btn('Отмена', `o:no:${id}`)]]));
     }
     const key = `${id}|${plat}`;
-    if (publishing.has(key)) return; // второе «Да» не выкладывает дважды
-    const todo = plats.filter((p) => !j.published?.[p]); // уже выложенное повторно не трогаем
+    if (publishing.has(key)) return; // a second "Yes" does not publish twice
+    const todo = plats.filter((p) => !j.published?.[p]); // already published items are not touched again
     if (!todo.length) return void (await send(chat, 'Уже выложено — второй раз не выкладываю.'));
     publishing.add(key);
     await send(chat, `Выкладываю: ${todo.map((p) => OWNER_PLAT[p]).join(', ')}…`);
@@ -200,7 +200,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
       const lines = [];
       for (const p of todo) {
         try {
-          // confirm: true — только здесь, после нажатия кнопки Сашей
+          // confirm: true — only here, after the owner presses the button
           const r = await studio.publish(p, j.dir, { confirm: true });
           j.published[p] = r.skipped ? (j.published[p] ?? 'было') : r.manual ? 'вручную' : (r.url ?? r.id ?? 'да');
           lines.push(T.ownerPublished(OWNER_PLAT[p], r));
@@ -234,7 +234,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     ].join('\n');
   }
 
-  // ---------- напарница ----------
+  // ---------- partner ----------
   async function onPartner(chat, text, m) {
     const s = S();
     s.lastSeenAt = iso(); s.nudgesUnanswered = 0;
@@ -277,7 +277,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await send(chat, T.fallback);
   }
 
-  // ----- задания -----
+  // ----- tasks -----
   function pauseUntilText(ms) { const l = new Date(ms + tzNow() * 3_600_000); return `${l.getUTCDate()} ${RU_MONTHS[l.getUTCMonth()]} (${RU_DAYS_NOM[l.getUTCDay()]})`; }
 
   async function issueTask(task, repeat = false) {
@@ -310,7 +310,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     void s;
   }
 
-  // ----- карточки выбора с 3-й недели -----
+  // ----- choice cards from week 3 -----
   const lastUsed = () => {
     const m = new Map();
     for (const h of S().taskHistory) if (h.id) m.set(h.id, h.date);
@@ -355,7 +355,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     if (s.cards?.msgId && d.partnerId) await tg.editButtons?.(d.partnerId, s.cards.msgId, null).catch(() => {});
   }
 
-  // ----- видео -----
+  // ----- videos -----
   async function onVideo(chat, m) {
     const s = S();
     const v = m.video ?? m.video_note ?? m.document;
@@ -392,7 +392,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await send(chat, T.shotSaved);
   }
 
-  // цифры относятся к неделе последних итогов, если те были в последние 3 дня; иначе — к текущей неделе
+  // figures refer to the week of the latest totals if those were within the last 3 days; otherwise to the current week
   function statsWeek() {
     const s = S();
     if (s.lastWeeklyDate && s.statsWeek && daysBetween(s.lastWeeklyDate, today()) <= 3) return s.statsWeek;
@@ -408,7 +408,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await send(chat, T.statsSaved(rows.map((r) => `${PLATFORM_LABEL[r.platform]} ${nf(r.views)}${r.subs ? ` (+${r.subs})` : ''}`).join(', ')));
   }
 
-  // ----- сборка и выдача поста -----
+  // ----- assembly and post delivery -----
   async function processBatch() {
     const s = S(); const b = s?.batch;
     if (!b || b.state !== 'collecting' || nowMs() - b.lastAt < quietMs) return;
@@ -453,7 +453,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     const c = post.captions[p.id];
     return `<b>Для ${p.label}</b>\nПодпись: ${T.esc(c.caption)}\nХештеги: ${c.hashtags.join(' ')}\nПервый комментарий: ${T.esc(c.comment)}`;
   }).join('\n\n');
-  const delivering = new Set(); // пост выдаётся ровно одним вызовом: тик не запускает вторую выдачу параллельно
+  const delivering = new Set(); // the post is delivered in exactly one call: a tick does not start a second delivery in parallel
   async function deliverPost(post) {
     const chat = d.partnerId; if (!chat || delivering.has(post.id) || post.status === 'stuck') return;
     delivering.add(post.id);
@@ -471,11 +471,11 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
       log(`deliver failed: ${e.message}`);
       post.deliverAttempts = (post.deliverAttempts ?? 0) + 1;
       post.status = 'ready-unsent';
-      // ноутбук спит или нет сети — обычное дело: повторяем всё реже (0,5 → 120 мин) до суток
+      // laptop asleep or no network is normal: retry less and less often (0.5 → 120 min) for up to a day
       const mins = [0.5, 1, 2, 5, 10, 30, 60, 120][Math.min(post.deliverAttempts - 1, 7)];
       post.nextDeliverAt = new Date(nowMs() + mins * 60_000).toISOString();
       const tooOld = nowMs() - Date.parse(post.createdAt) > DAY;
-      if (tooOld || /403|blocked|chat not found|deactivated/i.test(e.message)) { // напарница заблокировала бота или сутки без связи
+      if (tooOld || /403|blocked|chat not found|deactivated/i.test(e.message)) { // partner blocked the bot, or a day without contact
         post.status = 'stuck';
         await toOwner(T.deliveryStuck(post.taskId ? taskTitle(post.taskId) : 'свободная съёмка', e.message));
       } else if (post.deliverAttempts === 5 && !post.ownerWarned) {
@@ -527,7 +527,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await toPartner(T.thanksPosted);
   }
 
-  // ---------- кнопки ----------
+  // ---------- buttons ----------
   async function onCallback(cb) {
     try { await tg.answerCallback?.(cb.id); } catch { /* ignore */ }
     if (d.ownerId && cb.from?.id === d.ownerId && String(cb.data ?? '').startsWith('o:')) {
@@ -575,7 +575,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await issueTask(byId(id));
   }
 
-  // ---------- итоги недели ----------
+  // ---------- weekly totals ----------
   function topPostsText() {
     const byPost = new Map();
     for (const r of d.stats) if (r.postId) byPost.set(r.postId, (byPost.get(r.postId) ?? 0) + r.views);
@@ -586,17 +586,17 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     const s = S();
     if (!s || !d.partnerId || isPaused()) return;
     const l = local();
-    // целевая дата — последнее «воскресенье 19:00»; если ноутбук был выключен, догоняем в течение двух дней
+    // target date is the last "Sunday 19:00"; if the laptop was off, catch up within two days
     const wd = config.weeklyDay ?? 0;
     const back = (l.getUTCDay() - wd + 7) % 7;
     const dueDate = back === 0 && hmNow() < (config.weeklyTime ?? '19:00') ? new Date(l.getTime() - 7 * DAY) : new Date(l.getTime() - back * DAY);
     const due = dueDate.toISOString().slice(0, 10);
     if (daysBetween(due, today()) > 2 || (s.lastWeeklyDate && s.lastWeeklyDate >= due)) return;
     const startDay = new Date(Date.parse(s.startedAt) + tzNow() * 3_600_000).toISOString().slice(0, 10);
-    if (daysBetween(startDay, due) < 7) return; // первая неделя ещё не прошла: итогов нет
+    if (daysBetween(startDay, due) < 7) return; // first week has not passed yet: no totals
     s.lastWeeklyDate = today();
     s.statsWeek = isoWeek(dueDate);
-    // автодоступ к статистике (когда Саша подключит входы): источник отдаёт строки недели, бот кладёт их рядом с ручными
+    // automatic access to statistics (once the owner connects the logins): the source returns the week's rows, and the bot stores them next to the manual ones
     if (statsSource?.connected) {
       try {
         const got = await statsSource.fetch({ week: isoWeek(dueDate) });
@@ -624,14 +624,14 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     await toPartner(parts.join('\n\n'), [perPost ? [btn('Покажи по роликам', 'a:wk_posts'), btn('Спасибо', 'a:wk_thanks')] : [btn('Спасибо', 'a:wk_thanks')], [btn('Хочу реже', 'a:wk_less')]]);
   }
 
-  // ---------- ежедневное ----------
+  // ---------- daily ----------
   async function dailyTask() {
     const s = S();
     if (!s || !d.partnerId || isPaused()) return;
     if (hmNow() < (config.taskTime ?? '19:30') || s.lastTaskDate === today()) return;
     if (s.cadence === 'light' && s.lastTaskDate && daysBetween(s.lastTaskDate, today()) < 2) return;
     const t = s.task;
-    if (t && t.status === 'sent' && s.nudgesUnanswered >= 1) return; // не наваливаем: ждём её слова
+    if (t && t.status === 'sent' && s.nudgesUnanswered >= 1) return; // do not pile on: wait for her reply
     if (t && t.status === 'postponed' && t.id) return void (await issueTask(byId(t.id), true));
     if (t && t.status === 'postponed') { record({ id: null, status: 'missed' }); s.task = null; }
     if (t && ['sent', 'accepted', 'received'].includes(t.status) && t.date !== today()) { record({ id: t.id, status: 'missed' }); s.task = null; }
@@ -652,7 +652,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     s.nudgesUnanswered += 1;
   }
 
-  // после перезапуска: сборка, которую оборвали, возвращается в очередь (клипы сохранены на диске)
+  // after a restart: an interrupted assembly goes back to the queue (clips are kept on disk)
   function resumeInterrupted() {
     for (const post of d.posts.filter((p) => p.status === 'building')) void enqueueBuild(() => runBuild(post));
   }
@@ -661,7 +661,7 @@ export function createBot({ tg, store, montage, clock, config, log = console.log
     for (const post of d.posts.filter((p) => p.status === 'ready-unsent' && (!p.nextDeliverAt || Date.parse(p.nextDeliverAt) <= nowMs()))) await deliverPost(post);
   }
 
-  // клипы опубликованных роликов старше 45 дней удаляем: диск ноутбука не бесконечный
+  // clips of published videos older than 45 days are deleted: the laptop disk is not infinite
   function cleanupOld() {
     const limit = nowMs() - 45 * DAY;
     for (const post of d.posts.filter((p) => p.status === 'posted' && Date.parse(p.createdAt) < limit && !p.cleaned)) {

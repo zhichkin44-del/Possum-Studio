@@ -1,4 +1,4 @@
-// Совет «выкладывать или нет» с понятными критериями: движение, писк, светло, без вспышки.
+// "Post or not" advice with clear criteria: motion, squeaks, brightness, no flash.
 export function advise(a) {
   const peaks = a.peaks ?? [];
   const criteria = {
@@ -17,6 +17,6 @@ export function advise(a) {
   const why = verdict === 'не советую'
     ? `Похоже на вспышку или резкий свет — для глаз зверька это стресс, лучше не выкладывать. ${list}`
     : list;
-  // критерии всегда названы словами: движение, писк, светло
+  // the criteria are always named in words: motion, squeaks, brightness
   return { verdict, criteria, why: /движение/.test(why) ? why : `${why} (смотрю на: движение, писк, светло)` };
 }

@@ -1,4 +1,4 @@
-// Приложение напарницы: папка «Входящие» → очередь → монтаж по одному. Видео подхватывается, когда файл докопирован.
+// The user's app: "Inbox" folder → queue → editing one at a time. A video is picked up once its file has finished copying.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, appendFileSync, existsSync, readFileSync } from 'node:fs';
@@ -30,17 +30,17 @@ function fakeStudio({ fails = 0 } = {}) {
   return s;
 }
 
-test('видео ждёт, пока докопируется; остальные файлы игнорируются', async () => {
+test('video waits until the copy finishes; other files are ignored', async () => {
   const studio = fakeStudio();
   const { inDir, make } = setup(studio);
   const inbox = make();
   writeFileSync(join(inDir, 'поссум.mp4'), 'a');
   writeFileSync(join(inDir, 'заметка.txt'), 'x');
   inbox.scan();
-  assert.equal(inbox.list().length, 0, 'с первого взгляда ещё копируется');
+  assert.equal(inbox.list().length, 0, 'still copying at first glance');
   appendFileSync(join(inDir, 'поссум.mp4'), 'bb');
   inbox.scan();
-  assert.equal(inbox.list().length, 0, 'размер меняется — ждём');
+  assert.equal(inbox.list().length, 0, 'size is changing — waiting');
   inbox.scan();
   await inbox.idle();
   const [job] = inbox.list();
@@ -51,7 +51,7 @@ test('видео ждёт, пока докопируется; остальные
   assert.equal(studio.calls.length, 1);
 });
 
-test('монтаж по одному ролику за раз', async () => {
+test('editing one clip at a time', async () => {
   const studio = fakeStudio();
   const { inDir, make } = setup(studio);
   const inbox = make();
@@ -63,7 +63,7 @@ test('монтаж по одному ролику за раз', async () => {
   assert.ok(inbox.list().every((j) => j.status === 'done'));
 });
 
-test('сбой → понятная ошибка; «Переделать» запускает заново', async () => {
+test('failure → clear error; "Redo" starts over', async () => {
   const studio = fakeStudio({ fails: 1 });
   const { inDir, make } = setup(studio);
   const inbox = make();
@@ -80,7 +80,7 @@ test('сбой → понятная ошибка; «Переделать» за�
   assert.equal(job.error, null);
 });
 
-test('после перезапуска готовое не монтируется снова, прерванное — доделывается', async () => {
+test('after restart, finished items are not edited again, interrupted ones are finished', async () => {
   const studio = fakeStudio();
   const { inDir, statePath, make } = setup(studio);
   writeFileSync(join(inDir, 'old.mp4'), 'old');
@@ -89,7 +89,7 @@ test('после перезапуска готовое не монтируетс
   await first.idle();
   assert.equal(studio.calls.length, 1);
 
-  // имитация: приложение закрыли посреди монтажа второго ролика
+  // simulation: the app was closed in the middle of editing the second video
   writeFileSync(join(inDir, 'mid.mp4'), 'mid');
   const st = JSON.parse((await import('node:fs')).readFileSync(statePath, 'utf8'));
   st.jobs.push({ id: 'mid1', key: 'x', name: 'mid.mp4', src: join(inDir, 'mid.mp4'), status: 'working', step: 'Монтирую' });
@@ -101,10 +101,10 @@ test('после перезапуска готовое не монтируетс
   second.scan(); second.scan();
   await second.idle();
   const names = studio.calls.map((c) => c.split(/[\\/]/).pop());
-  assert.deepEqual(names, ['old.mp4', 'mid.mp4'], 'old не повторился, mid доделан один раз');
+  assert.deepEqual(names, ['old.mp4', 'mid.mp4'], 'old was not repeated, mid was finished once');
 });
 
-test('изменения видны окну через onChange', async () => {
+test('changes are visible to the window via onChange', async () => {
   const studio = fakeStudio();
   const root = mkdtempSync(join(tmpdir(), 'possum-inbox-'));
   const seen = [];
@@ -116,7 +116,7 @@ test('изменения видны окну через onChange', async () => {
   assert.equal(seen.at(-1), 'done');
 });
 
-test('файл берётся, только когда не менялся stableMs (по часам)', () => {
+test('file is picked up only when unchanged for stableMs (by clock)', () => {
   const studio = fakeStudio();
   const { inDir, statePath } = setup(studio);
   let t = 1000;
@@ -124,12 +124,12 @@ test('файл берётся, только когда не менялся stabl
   writeFileSync(join(inDir, 'долгий.mp4'), 'a');
   inbox.scan();
   t += 3000; inbox.scan();
-  assert.equal(inbox.list().length, 0, 'через 3 с ещё рано');
+  assert.equal(inbox.list().length, 0, 'after 3 s still too early');
   t += 13_000; inbox.scan();
-  assert.equal(inbox.list().length, 1, 'через 16 с без изменений — в очередь');
+  assert.equal(inbox.list().length, 1, 'after 16 s unchanged — into the queue');
 });
 
-test('пока файл копируется, он сразу виден во «Входящих» — не «Пока пусто»', () => {
+test('while the file is being copied, it is visible in Inbox at once — not "Nothing yet"', () => {
   const studio = fakeStudio();
   const { inDir, statePath } = setup(studio);
   let t = 1000; let shown = [];
@@ -137,14 +137,14 @@ test('пока файл копируется, он сразу виден во «
   writeFileSync(join(inDir, 'копия.mp4'), 'a');
   writeFileSync(join(inDir, 'заметка.txt'), 'x');
   inbox.scan();
-  assert.equal(inbox.list().length, 0, 'в очередь ещё рано');
+  assert.equal(inbox.list().length, 0, 'still too early for the queue');
   assert.deepEqual(shown.map((j) => [j.name, j.status]), [['копия.mp4', 'copying']]);
   t += 16_000; inbox.scan();
-  assert.ok(!shown.some((j) => j.status === 'copying'), 'докопировался — запись «копируется» исчезла');
-  assert.equal(shown.filter((j) => j.name === 'копия.mp4').length, 1, 'без дубля');
+  assert.ok(!shown.some((j) => j.status === 'copying'), 'copy finished — the "copying" entry disappeared');
+  assert.equal(shown.filter((j) => j.name === 'копия.mp4').length, 1, 'no duplicate');
 });
 
-test('файл убрали из папки, не докопировав, — пропадает и из списка', async () => {
+test('file removed from the folder before the copy finished — disappears from the list too', async () => {
   const studio = fakeStudio();
   const { inDir, statePath } = setup(studio);
   const { rmSync } = await import('node:fs');
@@ -158,7 +158,7 @@ test('файл убрали из папки, не докопировав, — п
   assert.equal(shown.length, 0);
 });
 
-test('испорченный файл очереди сохраняется как .bak, а не теряется молча', () => {
+test('corrupted queue file is saved as .bak, not silently lost', () => {
   const studio = fakeStudio();
   const { statePath, make } = setup(studio);
   writeFileSync(statePath, '{битый json');
@@ -168,7 +168,7 @@ test('испорченный файл очереди сохраняется ка
   assert.equal(readFileSync(`${statePath}.bak`, 'utf8'), '{битый json');
 });
 
-test('пачка: вся очередь уходит в batch одним заходом; ошибки и пропуски — по файлам; итог сохраняется', async () => {
+test('batch: the whole queue goes to batch in one pass; errors and skips per file; result is saved', async () => {
   const { inDir, statePath, root } = setup(fakeStudio());
   const calls = []; const got = [];
   const batch = async (files, onProgress) => {
@@ -185,21 +185,21 @@ test('пачка: вся очередь уходит в batch одним зах�
   for (const n of ['1.mp4', '2.mp4', '3.mp4']) writeFileSync(join(inDir, n), n);
   inbox.scan(); inbox.scan();
   await inbox.idle();
-  assert.deepEqual(calls, [['1.mp4', '2.mp4', '3.mp4']], 'один заход на всю пачку');
+  assert.deepEqual(calls, [['1.mp4', '2.mp4', '3.mp4']], 'one pass for the whole batch');
   const by = Object.fromEntries(inbox.list().map((j) => [j.name, j]));
   assert.equal(by['1.mp4'].step, 'Разобран');
   assert.deepEqual([by['2.mp4'].status, by['2.mp4'].error], ['error', 'битый файл']);
   assert.equal(by['3.mp4'].step, 'короче секунды — пропущен');
   assert.ok(inbox.list().every((j) => !('eta' in j)));
   assert.equal(inbox.last().made.length, 1);
-  assert.deepEqual(inbox.last().errors.map((e) => e.story), ['top5-x'], 'в итоге только ошибки монтажа');
+  assert.deepEqual(inbox.last().errors.map((e) => e.story), ['top5-x'], 'result has only editing errors');
   assert.equal(got.length, 1);
   const again = createInbox({ inDir, statePath, studio: null, stableMs: 0, batch });
-  assert.equal(again.last().decisions[0].text, 'Выложить?', 'итог переживает перезапуск');
+  assert.equal(again.last().decisions[0].text, 'Выложить?', 'result survives restart');
   assert.ok(existsSync(join(root, '.jobs.json')));
 });
 
-test('пачка упала целиком — все файлы с понятной ошибкой, приложение живо', async () => {
+test('whole batch failed — all files get a clear error, app stays alive', async () => {
   const { inDir, statePath } = setup(fakeStudio());
   const inbox = createInbox({ inDir, statePath, studio: null, stableMs: 0, batch: async () => { throw new Error('нет ffmpeg'); } });
   writeFileSync(join(inDir, 'a.mp4'), 'a');
@@ -208,7 +208,7 @@ test('пачка упала целиком — все файлы с понятн
   assert.deepEqual(inbox.list().map((j) => [j.status, j.error]), [['error', 'нет ffmpeg']]);
 });
 
-test('сборка после отметки зверька: итог обновляется, число видео пачки и итог переживают перезапуск', async () => {
+test('build after marking the pet: result updates; batch video count and result survive restart', async () => {
   const { inDir, statePath } = setup(fakeStudio());
   const batch = async (files) => ({ files: files.map((f, i) => ({ file: f, id: String(i) })), errors: [], made: [], decisions: [{ type: 'confirm', clips: [], text: 'Отметьте' }] });
   const inbox = createInbox({ inDir, statePath, studio: null, stableMs: 0, batch });
@@ -218,14 +218,14 @@ test('сборка после отметки зверька: итог обнов
   assert.equal(inbox.last().decisions[0].type, 'confirm');
   const l = inbox.setLast({ made: [{ id: 'day-1', kind: 'day' }], decisions: [{ type: 'publish', id: 'day-1', text: 'Выложить?' }], errors: [] });
   assert.equal(l.made.length, 1);
-  assert.equal(l.n, 2, 'в пачке было два видео');
-  assert.equal(l.decisions[0].type, 'publish', 'вопрос об отметке ушёл');
+  assert.equal(l.n, 2, 'batch had two videos');
+  assert.equal(l.decisions[0].type, 'publish', 'mark question was sent');
   const again = createInbox({ inDir, statePath, studio: null, stableMs: 0, batch });
   assert.equal(again.last().decisions[0].text, 'Выложить?');
   assert.equal(again.last().n, l.n);
 });
 
-test('чужой зверь в пачке: видео помечено «не взято», а не «ошибка» и не «разобран»; счёт notPet в итоге', async () => {
+test('foreign pet in batch: video marked "not taken", not "error" or "parsed"; notPet count in result', async () => {
   const { inDir, statePath } = setup(fakeStudio());
   const batch = async (files) => ({
     files: [{ file: join(inDir, 'a.mp4'), id: 'a' }, { file: join(inDir, 'b.mp4'), notPet: true }],
@@ -243,15 +243,15 @@ test('чужой зверь в пачке: видео помечено «не в
   assert.equal(inbox.last().notPet, 1);
 });
 
-test('диалог выкладки: по умолчанию и на Esc — «Отмена», случайный Enter ничего не выкладывает', () => {
+test('publish dialog: default and Esc — "Cancel"; a stray Enter publishes nothing', () => {
   const src = readFileSync(join(import.meta.dirname, '..', 'app', 'main.js'), 'utf8');
   const m = src.match(/buttons:\s*\['Выложить',\s*'Отмена'\][^}]*/);
-  assert.ok(m, 'диалог выкладки найден');
+  assert.ok(m, 'publish dialog found');
   assert.match(m[0], /defaultId:\s*1/);
   assert.match(m[0], /cancelId:\s*1/);
 });
 
-test('эталон → отметка: ролики шагов суммируются, отброшенные моделью видео получают статус «не взято» с причиной', async () => {
+test('reference → mark: step clips are summed; videos dropped by the model get "not taken" status with a reason', async () => {
   const { inDir, statePath } = setup(fakeStudio());
   const batch = async (files) => ({ files: files.map((f, i) => ({ file: f, id: String(i) })), errors: [], made: [], decisions: [{ type: 'reference', text: 'Покажите' }] });
   const inbox = createInbox({ inDir, statePath, studio: null, stableMs: 0, batch });
@@ -264,10 +264,10 @@ test('эталон → отметка: ролики шагов суммирую�
   assert.equal(b.status, 'notpet');
   assert.match(b.step, /почти нет/);
   const l2 = inbox.setLast({ made: [], decisions: [], errors: [], rejected: [{ name: 'b.mp4', why: 'зверька в кадре почти нет' }, { name: 'c.mp4', why: null }] });
-  assert.deepEqual(l2.made.map((m) => m.id), ['day-1'], 'ролик шага с эталоном не потерялся');
+  assert.deepEqual(l2.made.map((m) => m.id), ['day-1'], 'step clip with reference was not lost');
   assert.equal(l2.notPet, 2);
   assert.deepEqual(l2.rejected.map((r) => r.name), ['b.mp4', 'c.mp4']);
   assert.equal(inbox.list().find((j) => j.name === 'c.mp4').status, 'notpet');
   const l3 = inbox.setLast({ made: [{ id: 'day-2' }], decisions: [], errors: [] });
-  assert.deepEqual(l3.made.map((m) => m.id), ['day-2'], 'после законченного шага итог не копится');
+  assert.deepEqual(l3.made.map((m) => m.id), ['day-2'], 'after a finished step the result does not accumulate');
 });

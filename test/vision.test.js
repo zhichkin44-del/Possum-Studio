@@ -1,4 +1,4 @@
-// Этап 2, шаг 3: разбор Haiku (лист 3×3) — без ключа, поддельный клиент, кэш, потолок, отказ, ошибка с ключом.
+// Stage 2, step 3: Haiku review (3×3 sheet) — no key, fake client, cache, ceiling, refusal, error with a key.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -25,19 +25,19 @@ function fakeClient(reply, usage = { input_tokens: 1300, output_tokens: 250 }, e
   };
 }
 
-test('лист: 9 кадров из хороших планов по порядку времени, брак пропущен', () => {
+test('sheet: 9 frames from good plans in time order, defective ones skipped', () => {
   const c = clip([shot(0, 4, 0.9), shot(4, 4, 0.99, [], ['размыто']), shot(8, 6, 0.5)]);
   const fr = pickSheetFrames(c, 9);
   assert.equal(fr.length, 9);
-  assert.ok(fr.every((f) => f.shot !== 1), 'бракованный план не на листе');
+  assert.ok(fr.every((f) => f.shot !== 1), 'defective plan is not on the sheet');
   assert.deepEqual(fr.map((f) => f.t), [...fr.map((f) => f.t)].sort((a, b) => a - b));
   assert.ok(fr.every((f) => { const s = c.shots[f.shot]; return f.t >= s.from && f.t < s.from + s.len; }));
   assert.deepEqual(pickSheetFrames(clip([]), 9), []);
   const allBad = pickSheetFrames(clip([shot(0, 3, 0.4, [], ['тёмное-чёрное'])]), 9);
-  assert.equal(allBad.length, 9, 'если хорошего нет — берём что есть, лист всё равно соберётся');
+  assert.equal(allBad.length, 9, 'if none is good — take what there is, the sheet is still built');
 });
 
-test('лист: ffmpeg-аргументы — 9 входов (добивка), сетка xstack 1152×648', () => {
+test('sheet: ffmpeg arguments — 9 inputs (padding), xstack grid 1152×648', () => {
   const args = sheetArgs({ src: 'in.mp4', frames: [{ t: 1 }, { t: 2.5 }], out: 's.jpg' });
   assert.equal(args.filter((a) => a === '-i').length, 9);
   const fc = args[args.indexOf('-filter_complex') + 1];
@@ -46,7 +46,7 @@ test('лист: ffmpeg-аргументы — 9 входов (добивка), �
   assert.ok(args.includes('2.500'));
 });
 
-test('без ключа — метки из сигналов, честно «без Claude», бесплатно', async () => {
+test('no key — labels from signals, honestly "without Claude", free', async () => {
   const v = createVision({});
   assert.equal(v.enabled, false);
   assert.equal(v.model, VISION_MODEL);
@@ -56,7 +56,7 @@ test('без ключа — метки из сигналов, честно «б�
   assert.equal(signalVision(clip([shot(0, 5, 0.5, ['asmr?'], ['размыто'])])).asmr, false);
 });
 
-test('поддельный Haiku: модель зашита, JSON-схема, картинка; ответ → метки планов', async () => {
+test('fake Haiku: model is hardcoded, JSON schema, image; response → plan labels', async () => {
   const frames = [{ shot: 0, t: 1 }, { shot: 1, t: 5 }, { shot: 2, t: 9 }];
   const client = fakeClient({ frames: [{ n: 1, action: 'ест', stress: false }, { n: 2, action: 'прыжок', stress: false }, { n: 3, action: 'не видно', stress: false }], mood: 'игривый', best: 2, asmr: true });
   const v = createVision({ client });
@@ -75,7 +75,7 @@ test('поддельный Haiku: модель зашита, JSON-схема, к
   assert.ok(Math.abs(r.cost - costOf({ input_tokens: 1300, output_tokens: 250 })) < 1e-9);
 });
 
-test('стресс от Haiku → план в брак библиотеки, в сюжеты не идёт', async () => {
+test('stress from Haiku → plan goes to library defects, not to stories', async () => {
   const root = mkdtempSync(join(tmpdir(), 'possum-vis-'));
   const base = join(root, 'Поссум'); mkdirSync(join(base, 'Входящие'), { recursive: true });
   const lib = createLibrary({ path: join(base, 'library.json'), baseDir: base, now: () => 1_700_000_000_000 });
@@ -95,7 +95,7 @@ test('стресс от Haiku → план в брак библиотеки, в 
   assert.equal(after.vision.by, 'claude');
 });
 
-test('кэш по id клипа: второй раз без вызова, переживает перезапуск; расход за день копится', async () => {
+test('cache by clip id: second time without a call, survives restart; daily spend accumulates', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'possum-vis-'));
   const cachePath = join(dir, 'cache', 'vision.json');
   const client = fakeClient({ frames: [{ n: 1, action: 'спит', stress: false }], mood: 'сонный', best: 1, asmr: false });
@@ -107,7 +107,7 @@ test('кэш по id клипа: второй раз без вызова, пер
   assert.equal(client.calls.length, 1);
   assert.equal(b.fromCache, true); assert.deepEqual(b.frames, a.frames);
   assert.ok(existsSync(cachePath));
-  assert.ok(!readFileSync(cachePath, 'utf8').includes(IMG.toString('base64')), 'картинки в кэше нет');
+  assert.ok(!readFileSync(cachePath, 'utf8').includes(IMG.toString('base64')), 'no image in the cache');
   const v2 = createVision({ client, cachePath, now });
   assert.equal((await v2.analyze({ clip: c, image: IMG, frames: [{ shot: 0, t: 1 }] })).fromCache, true);
   assert.equal(client.calls.length, 1);
@@ -115,7 +115,7 @@ test('кэш по id клипа: второй раз без вызова, пер
   assert.deepEqual(v2.cached('clip1').frames, a.frames);
 });
 
-test('дневной потолок $: дальше — сигналы до завтра, без вызова', async () => {
+test('daily $ cap: beyond it — signals until tomorrow, no call', async () => {
   const client = fakeClient({ frames: [], mood: 'спокойный', best: 1, asmr: false }, { input_tokens: 1_000_000, output_tokens: 0 });
   let t = Date.UTC(2026, 10, 15, 10);
   const v = createVision({ client, dailyCapUsd: 0.05, now: () => t });
@@ -126,10 +126,10 @@ test('дневной потолок $: дальше — сигналы до за
   assert.equal(r.by, 'сигналы'); assert.match(r.note, /потолок/);
   t += 24 * 3600 * 1000;
   await v.analyze({ clip: clip([shot(0, 4, 0.5)], { id: 'c' }), image: IMG, frames: [{ shot: 0, t: 1 }] });
-  assert.equal(client.calls.length, 2, 'на следующий день снова можно');
+  assert.equal(client.calls.length, 2, 'next day it is allowed again');
 });
 
-test('нет кадров — без вызова; отказ модели — сигналы, расход учтён, в кэш не пишем', async () => {
+test('no frames — no call; model refusal — signals, spend counted, not cached', async () => {
   const client = fakeClient('', undefined, { stop: 'refusal' });
   const v = createVision({ client });
   const none = await v.analyze({ clip: clip([]), image: null, frames: [] });
@@ -140,7 +140,7 @@ test('нет кадров — без вызова; отказ модели — �
   assert.equal(v.cached('clip1'), null);
 });
 
-test('ошибка сети с ключом в тексте — ключа в заметке нет', async () => {
+test('network error with key in the text — no key in the note', async () => {
   const key = 'sk-ant-REDACTEDCRET';
   const client = fakeClient({}, undefined, { throw: `401 invalid x-api-key ${key}` });
   const r = await createVision({ apiKey: key, client }).analyze({ clip: clip([shot(0, 4, 0.5)]), image: IMG, frames: [{ shot: 0, t: 1 }] });
@@ -148,20 +148,20 @@ test('ошибка сети с ключом в тексте — ключа в з
   assert.match(r.note, /Claude недоступен/);
   assert.ok(!r.note.includes('SECRET'), r.note);
   const bad = await createVision({ client: fakeClient('не json') }).analyze({ clip: clip([shot(0, 4, 0.5)]), image: IMG, frames: [{ shot: 0, t: 1 }] });
-  assert.equal(bad.by, 'сигналы', 'битый JSON — не падаем');
+  assert.equal(bad.by, 'сигналы', 'broken JSON — we do not crash');
 });
 
-test('ответ модели: имя зверька вырезается из настроения, чужие номера кадров и действия игнорируются', () => {
+test('model response: pet name is removed from mood, foreign shot numbers and actions are ignored', () => {
   const frames = [{ shot: 0, t: 1 }];
   const v = toVision({ frames: [{ n: 1, action: 'танцует', stress: false }, { n: 7, action: 'ест', stress: true }], mood: 'Бублик доволен', best: 9, asmr: 'да' }, frames, { petNames: ['Бублик'] });
   assert.deepEqual(v.frames, []);
   assert.ok(!/Бублик/i.test(v.mood), v.mood);
-  assert.equal(v.asmr, false, 'только true — это да');
+  assert.equal(v.asmr, false, 'only true means yes');
   assert.equal(v.bestShot, null);
   assert.deepEqual(toVision(null, frames).frames, []);
 });
 
-test('цена: по прайсу Haiku 5.5, кэш входа считается как вход', () => {
+test('price: per the Haiku 5.5 price table, input cache is counted as input', () => {
   assert.equal(costOf({ input_tokens: 1_000_000 }), 0.10);
   assert.equal(costOf({ output_tokens: 1_000_000 }), 0.50);
   assert.ok(Math.abs(costOf({ input_tokens: 1300, output_tokens: 250 }) - 0.000255) < 1e-9);
@@ -169,7 +169,7 @@ test('цена: по прайсу Haiku 5.5, кэш входа считаетс�
   assert.equal(costOf(), 0);
 });
 
-test('вид зверька: «не видно» и «не ваш зверёк» — планы в сюжеты не идут, без ответа pet клип не трогаем', () => {
+test('pet species: "not visible" and "not your pet" — plans do not go to stories; without a pet answer the clip is left alone', () => {
   const base = mkdtempSync(join(tmpdir(), 'vis-pet-')); mkdirSync(join(base, 'Входящие'));
   const lib = createLibrary({ path: join(base, 'library.json'), baseDir: base, now: () => 1_700_000_000_000 });
   const mk = (name) => {

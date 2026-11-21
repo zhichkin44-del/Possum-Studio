@@ -1,8 +1,8 @@
-// TikTok: «в черновики» (inbox, scope video.upload). Владелец открывает уведомление в TikTok, ставит тренд-звук и публикует сам.
+// TikTok: "to drafts" (inbox, scope video.upload). The owner opens the notification in TikTok, adds the trending sound and publishes it himself.
 import { openSync, readSync, closeSync, statSync } from 'node:fs';
 
 const MB = 1024 * 1024;
-/** До 64 МБ — одним куском; больше — по 10 МБ, последний кусок забирает остаток. */
+/** Up to 64 MB — in one piece; larger — in 10 MB chunks, the last chunk takes the remainder. */
 export function chunkPlan(size) {
   if (size <= 64 * MB) return { chunkSize: size, total: 1 };
   const chunkSize = 10 * MB;

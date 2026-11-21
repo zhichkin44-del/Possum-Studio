@@ -1,13 +1,13 @@
-// Окно приложения. Всё через window.possum (preload); ключей здесь нет — только маски.
+// The app window. Everything goes through window.possum (preload); there are no keys here — only masks.
 const $ = (s, el = document) => el.querySelector(s);
-/** Текст ошибки без служебной приставки Electron «Error invoking remote method '…': Error:». */
+/** Error text without the Electron service prefix "Error invoking remote method '…': Error:". */
 const errText = (e) => String(e?.message ?? e ?? '').replace(/^Error invoking remote method '[^']*': (?:\w*Error: )?/, '');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fileUrl = (p) => 'file:///' + String(p).replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/').replace(/^([A-Za-z])%3A/, '$1:');
 const STATUS = { copying: 'копируется', waiting: 'в очереди', working: 'в работе', done: 'готово', notpet: 'не взято', error: 'ошибка' };
 const PLAT = { youtube: 'YouTube Shorts', tiktok: 'TikTok', instagram: 'Instagram Reels' };
 const KIND = { top5: 'Топ-5 моментов', day: 'День из жизни', beforeAfter: 'Сначала и потом', calm: 'Спокойные моменты', asmr: 'АСМР', series: 'Серия' };
-// имя файла для людей: без даты в начале, без расширения, без подчёркиваний; полное — во всплывающей подсказке
+// file name for people: without the date at the start, without the extension, without underscores; the full name is in the tooltip
 const nice = (n) => String(n ?? '').replace(/^\d{4}-\d{2}-\d{2}[ _T-]*(\d{2}[.:-]\d{2}([.:-]\d{2})?[ _-]*)?/, '').replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[_]+/g, ' ').trim() || String(n ?? '');
 const WD = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 const api = window.possum;
@@ -34,7 +34,7 @@ const gb = (n) => (n == null ? '' : `${(n / 1e9).toFixed(1)} ГБ`);
 const dayName = (s) => { if (!s?.at) return s?.day ?? ''; const d = new Date(s.at); return `${WD[d.getDay()]} ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}, ${String(d.getHours()).padStart(2, '0')}:00`; };
 const eta = (sec) => (sec == null ? '' : sec < 60 ? `≈ ${Math.max(1, Math.round(sec))} с` : `≈ ${Math.round(sec / 60)} мин`);
 
-// ——— Входящие ———
+// ——— Inbox ———
 function jobRow(j) {
   const li = document.createElement('li');
   const extra = j.status === 'error' ? `<span class="step bad">${esc(j.error)}</span>` : `<span class="step">${esc(j.step ?? '')}</span>`;
@@ -44,7 +44,7 @@ function jobRow(j) {
 }
 
 function renderJobs() {
-  // докопируемые файлы — одной строкой, чтобы пачка из 50 видео не растягивала список
+  // files still copying — in one line, so that a batch of 50 videos does not stretch the list
   const copy = jobs.filter((j) => j.status === 'copying');
   const rest = jobs.filter((j) => j.status !== 'copying');
   const head = copy.length > 1 ? [{ id: 'copying', status: 'copying', name: `${copy.length} видео`, step: `ждём, пока докопируются: ${copy.slice(0, 3).map((j) => nice(j.name)).join(', ')}${copy.length > 3 ? '…' : ''}` }] : copy;
@@ -76,7 +76,7 @@ function renderLast(l) {
   const head = made.length
     ? `Готово роликов: <b>${made.length}</b>. Разобрано видео: ${l.n}. Посмотрите каждый ролик в календаре.`
     : pair.role === 'partner' && pair.paired ? `Отправлено монтажёру: ${l.n} видео.` : `Разобрано видео: ${l.n}. Новых роликов нет.${l.queued ? ` В календаре уже роликов: <b>${l.queued}</b> — их можно смотреть и выкладывать.` : ''}`;
-  // коротко: только то, что требует действия; выбор заголовка и дня — в календаре
+  // briefly: only what needs action; the choice of title and day — in the calendar
   const lines = [];
   for (const c of l.confirmed ?? []) lines.push(esc(c.text));
   const rej = l.rejected ?? [];
@@ -97,7 +97,7 @@ function renderLast(l) {
   }));
 }
 
-// Один раз: 3–5 снимков «вот мой зверёк». Дальше модель узнаёт его сама, человеку — только неуверенные.
+// Once: 3–5 shots "this is my pet". Then the model recognizes it itself; the person gets only the unsure ones.
 function renderReference(box, l, d) {
   box.innerHTML = `<h3>Разобрано видео: ${l.n ?? 0}. Покажите вашего зверька</h3>
     <p>${esc(d.text ?? '')}</p>
@@ -116,7 +116,7 @@ function renderReference(box, l, d) {
   };
 }
 
-// Вид зверька в подписях называем только после «Да» владельца; до этого — «наш зверёк».
+// The pet's species in captions is named only after the owner's "Yes"; until then — "our pet".
 function renderSpecies() {
   const box = $('#speciesBox');
   const ask = (status.species?.refs ?? 0) > 0 && pair.role !== 'partner';
@@ -135,7 +135,7 @@ function renderSpecies() {
   $('#spNo').onclick = () => answer(null);
 }
 
-// Видео разобраны, но кто на них — проверяет человек: по листу кадров «Мой зверёк» или «Не он». Потом — сборка.
+// The videos are analysed, but the person checks who is in them: by the frame sheet "My pet" or "Not him". Then — assembly.
 function renderConfirm(box, l, d) {
   const marks = {};
   box.innerHTML = `<h3>Разобрано видео: ${l.n}. Отметьте, где ваш зверёк</h3>
@@ -178,7 +178,7 @@ function renderStatus(s) {
   status = s ?? {};
   if (!s) { $('#status').textContent = ''; return; }
   const rows = [['claude', 'ИИ'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['ffmpeg', 'Монтаж']];
-  // ● — подключено, ○ — нет; подключается в «Настройках»
+  // ● — connected, ○ — not; connected in "Settings"
   $('#status').innerHTML = rows.map(([k, t]) => `<div class="${s[k] ? 'yes' : ''}" title="${t}: ${s[k] ? 'подключено' : 'не подключено — подключите в Настройках'}">${t}</div>`).join('') + '<p class="legend">● подключено · ○ нет — подключите в Настройках</p>';
 }
 
@@ -190,24 +190,24 @@ function renderPair(p) {
   $('#pairLine').classList.toggle('solo', !who);
   $('#pairInfo').textContent = !who ? 'Пара не настроена — приложение работает одно.' : `${line}. Общая папка: ${pair.sharedDir ?? '—'}`;
   $('#pairAgain').textContent = who ? 'Настроить пару заново' : 'Настроить пару';
-  // у напарницы нет выкладки и настроек площадок: монтирует и выкладывает монтажёр
+  // The partner has no publishing or platform settings: the editor edits and publishes
   const partner = pair.role === 'partner';
   $('#pairAgain').hidden = partner && pair.paired;
   $('#partnerHint').hidden = !partner;
   document.querySelectorAll('.ownerOnly').forEach((el) => { el.hidden = partner; });
   $('[data-go="calendar"]').hidden = partner;
-  $('[data-go="settings"]').hidden = partner && pair.paired; // соединённой напарнице настраивать нечего
+  $('[data-go="settings"]').hidden = partner && pair.paired; // a connected partner has nothing to configure
   $('#navFrom').hidden = !partner;
   $('#add').textContent = pair.role === 'partner' && pair.paired ? 'Отправить видео монтажёру' : 'Добавить видео';
   $('#addName').textContent = `«${$('#add').textContent}»`;
   $('#addTail').textContent = partner && pair.paired ? 'видео уйдут ему сами' : 'разбор начнётся сам';
-  $('#status').hidden = partner; // Claude, YouTube, TikTok настраивает только монтажёр
+  $('#status').hidden = partner; // only the editor configures Claude, YouTube, TikTok
 }
 
 async function refresh() {
   const st = await api.state();
   jobs = st.jobs;
-  // полный путь — только во всплывающей подсказке: на экране он длинный и пугает; папку открывает кнопка «Открыть папку»
+  // the full path — only in the tooltip: on screen it is long and scary; the folder is opened by the "Open folder" button
   const toOwner = st.pair?.role === 'partner' && st.pair?.paired;
   $('#inHint').textContent = toOwner ? 'Видео уходят монтажёру сами.' : `Всё снятое — здесь${st.disk != null ? ` · свободно на диске ${gb(st.disk)}` : ''}`;
   $('#inHint').title = st.inDir ?? '';
@@ -223,7 +223,7 @@ async function refresh() {
   return st;
 }
 
-// ——— Что снять сегодня ———
+// ——— What to shoot today ———
 let todayBusy = false;
 function renderToday({ scenario: s, coverage: c }) {
   const shots = c?.shots ?? s.shots;
@@ -250,10 +250,10 @@ async function loadToday(refresh = false) {
 }
 $('#todayNew').onclick = () => loadToday(true);
 
-// ——— Идеи и советы: каталог сюжетов + наставник ———
-let cat = null;      // каталог из core/ideas.js
+// ——— Ideas and advice: story catalog + mentor ———
+let cat = null;      // catalog from core/ideas.js
 let catFilter = 'all';
-const chat = [];     // [{q, a}] — только в окне, на диск не пишем
+const chat = [];     // [{q, a}] — only in the window, never written to disk
 const lis = (xs) => `<ul>${xs.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function ideaCard(i, open = false) {
   return `<details class="card idea" id="idea-${esc(i.id)}"${open ? ' open' : ''}>
@@ -314,7 +314,7 @@ $('#askForm').onsubmit = async (ev) => {
   finally { $('#askGo').disabled = false; renderChat(); }
 };
 
-// ——— Календарь ———
+// ——— Calendar ———
 function slotCard(s, past = false) {
   const li = document.createElement('li');
   const pick = s.pick ?? 'A';
@@ -345,7 +345,7 @@ async function loadCalendar() {
   } catch (e) { $('#calHint').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 }
 
-const watched = new Set(); // ролики, досмотренные до конца в этом запуске
+const watched = new Set(); // videos watched to the end in this run
 async function openSlot(id) {
   let r;
   try { r = await api.slot(id); } catch (e) { alert(e.message); return; }
@@ -355,20 +355,20 @@ async function openSlot(id) {
   const body = $('#clipBody');
   if (!manifest) { body.innerHTML = '<p class="error">Файлы монтажа не найдены. Закиньте видео ещё раз.</p>'; go('clip'); return; }
   const p = manifest.packages ?? {};
-  // второй канал — английский; старые ролики его не знают, тогда блок как раньше
+  // the second channel is English; old videos do not know it, then the block as before
   const pe = manifest.packagesEn ?? (manifest.packagesEnA ? ((slot.pick ?? manifest.pick) === 'B' ? manifest.packagesEnB : manifest.packagesEnA) : null);
   const captions = (q, head) => `${head ? `<h3>${esc(head)}</h3>` : ''}
       <h3>YouTube</h3><pre>${esc(q.youtube?.title)}\n\n${esc(q.youtube?.description)}</pre>
       <h3>TikTok</h3><pre>${esc(q.tiktok?.caption)}</pre>
       <h3>Instagram</h3><pre>${esc(q.instagram?.caption)}</pre>`;
   const pick = slot.pick ?? manifest.pick ?? 'A';
-  // значок площадки: подключено ли (YouTube и TikTok — вход в Настройках; Instagram — всегда вручную)
+  // platform badge: connected or not (YouTube and TikTok — sign-in in Settings; Instagram — always manual)
   const ready = (plat) => plat === 'instagram' || Boolean(status[plat]);
   const mark = (plat) => (done?.[plat] || plat === 'instagram' ? '' : ready(plat) ? ' <span class="badge done">готово</span>' : ' <span class="badge">подключите в Настройках</span>');
   const btn = (plat) => `<button data-pub="${plat}" ${done?.[plat] ? 'disabled data-done="1"' : ready(plat) ? '' : 'disabled data-done="1" title="Подключите в Настройках"'}>${done?.[plat] ? `${PLAT[plat]}: уже выложено` : plat === 'tiktok' ? 'TikTok — в черновики' : plat === 'instagram' ? 'Instagram: скопировать подпись и открыть папку' : 'Выложить в YouTube'}${mark(plat)}</button>`;
   const review = slot.needsReview && !done?.youtube && !done?.tiktok && !done?.instagram;
   const draft = manifest.texts?.source !== 'claude' && !done?.youtube && !done?.tiktok && !done?.instagram;
-  // главная кнопка — только на подключённые площадки; остальным — подсказка
+  // the main button — only for connected platforms; for the others — a hint
   const readyList = Object.keys(PLAT).filter((k) => k !== 'instagram' && !done?.[k] && ready(k));
   const notReady = Object.keys(PLAT).filter((k) => !done?.[k] && !ready(k));
   body.innerHTML = `
@@ -389,23 +389,23 @@ async function openSlot(id) {
       ${captions(p, pe ? 'Канал RU' : '')}${pe ? captions(pe, 'Канал EN (англоязычная аудитория)') : ''}
     </details>
     ${manifest.music?.file ? '<p class="hint">Музыка подобрана из вашей папки.</p>' : ''}`;
-  // пункт списка моментов перематывает ролик на этот момент
+  // a list item of moments seeks the video to that moment
   body.querySelectorAll('[data-at]').forEach((b) => b.addEventListener('click', () => { const v = body.querySelector('video'); const [m, s] = String(b.dataset.at).split(':').map(Number); v.currentTime = (m || 0) * 60 + (s || 0); v.play().catch(() => {}); }));
   body.querySelectorAll('[data-pub]').forEach((b) => b.addEventListener('click', () => publish([b.dataset.pub])));
   body.querySelectorAll('input[name=clipTitle]').forEach((r) => r.addEventListener('change', async () => { await api.pickTitle(id, r.value); openSlot(id); }));
   $('#pubAll').onclick = () => publish(readyList);
   if (review) {
-    // пока человек не отметил, что посмотрел ролик, выкладка выключена
+    // until the person marks that they have watched the video, publishing is disabled
     const gate = () => body.querySelectorAll('[data-pub]:not([data-done]), #pubAll:not([data-done])').forEach((x) => { x.disabled = !$('#seen').checked; });
     $('#seen').addEventListener('change', gate);
-    // галочку можно поставить только после досмотра до конца
+    // the checkbox can be ticked only after watching to the end
     body.querySelector('video').addEventListener('ended', () => { watched.add(id); $('#seen').disabled = false; $('#seenHint').hidden = true; });
     gate();
   }
   $('#openDir').onclick = () => api.open(slot.dir);
   const skipBtn = $('#skipClip');
   if (skipBtn) { skipBtn.hidden = Boolean(done?.youtube || done?.tiktok || done?.instagram); skipBtn.onclick = async () => { await api.skip(id); go('calendar'); }; }
-  // «Убрать» — момент без зверька: приложение ставит другой и пересобирает ролик
+  // "Remove" — a moment without the pet: the app puts another one and reassembles the video
   body.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', async () => {
     const k = Number(b.dataset.rm);
     if (!confirm(`Убрать момент ${k + 1} и пересобрать ролик? Это займёт до минуты.`)) return;
@@ -428,7 +428,7 @@ function resultLine(r) {
 async function publish(platforms) {
   if (!current || !platforms.length) return;
   const box = $('#results');
-  // пока идёт выкладка, кнопки выключены: двойной клик не выложит дважды
+  // while publishing is in progress, the buttons are disabled: a double click will not publish twice
   const btns = [...document.querySelectorAll('[data-pub], #pubAll')];
   btns.forEach((x) => { x.disabled = true; });
   box.innerHTML = '<li>Жду подтверждения…</li>';
@@ -441,7 +441,7 @@ async function publish(platforms) {
   finally { btns.forEach((x) => { x.disabled = x.dataset.done === '1' || ($('#seen') && !$('#seen').checked); }); }
 }
 
-// ——— Мастер первого запуска ———
+// ——— First-run wizard ———
 let wzRole = null;
 document.querySelectorAll('[data-role]').forEach((b) => b.addEventListener('click', async () => {
   wzRole = b.dataset.role;
@@ -465,7 +465,7 @@ $('#wzJoin').onclick = async () => {
   try { const p = await api.pairJoin($('#wzCodeIn').value.trim()); renderPair(p); $('#wzCodeIn').value = ''; $('#wzPartner').hidden = true; $('#wzMsg').innerHTML = '<span class="ok">Соединено. Теперь нажмите «Отправить видео монтажёру» — видео уйдут ему сами.</span>'; }
   catch (e) { $('#wzMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 };
-// Шаг «Ключ ИИ» — только для того, кто выкладывает (владелец или «один»). Напарнице ключ не нужен.
+// The "AI key" step — only for the one who publishes (The owner or "one"). The partner does not need a key.
 const usd = (x) => (x < 0.01 ? `меньше цента` : `${x.toFixed(2)}`);
 async function keyStep() {
   $('#wzRole').hidden = true; $('#wzCode').hidden = true; $('#wzKey').hidden = false;
@@ -486,7 +486,7 @@ $('#wzKeySave').onclick = async () => {
     keyDone();
   }
   catch (e) { $('#wzKeyMsg').innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
-  finally { $('#wzKeyIn').value = ''; } // ключ в поле не держим: ни после сохранения, ни при «не сохранён» (NO_CRYPTO), ни при ошибке
+  finally { $('#wzKeyIn').value = ''; } // we do not keep the key in the field: neither after saving, nor on "not saved" (NO_CRYPTO), nor on error
 };
 $('#wzKeyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#wzKeySave').click(); };
 $('#wzKeyLater').onclick = keyDone;
@@ -494,8 +494,8 @@ $('#wzSolo').onclick = async () => { await api.solo(); keyStep(); };
 $('#wzFinish').onclick = () => { if (wzRole === 'partner') { go('today'); refresh(); } else keyStep(); };
 $('#pairAgain').onclick = () => { $('#wzRole').hidden = false; $('#wzCode').hidden = true; $('#wzKey').hidden = true; $('#wzCodeOut').textContent = ''; $('#wzMsg').textContent = ''; go('wizard'); };
 
-// ——— Настройки ———
-const get = PossumForm.getPath; // логика формы — в form.js, её проверяет test/form.test.js
+// ——— Settings ———
+const get = PossumForm.getPath; // form logic — in form.js, checked by test/form.test.js
 
 async function loadSettings() {
   try {
@@ -514,7 +514,7 @@ async function loadSettings() {
 
 $('#form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  // маску ключа «•••abcd» не шлём; поле, которое очистили, шлём пустым — это «удалить» (dataset.had — что было при открытии)
+  // the key mask "•••abcd" is not sent; a field that was cleared is sent empty — that means "delete" (dataset.had — what it was when opened)
   const patch = PossumForm.formPatch([...e.target.elements].map((el) => ({ name: el.name, type: el.type, value: el.value, had: el.dataset.had })));
   try {
     const res = await api.saveSettings(patch);
@@ -532,15 +532,15 @@ document.querySelectorAll('[data-connect]').forEach((b) => b.addEventListener('c
   catch (e) { out.innerHTML = `<span class="bad">${esc(errText(e))}</span>`; }
 }));
 
-// ——— Готовые от монтажёра (у напарницы) ———
+// ——— Ready from the editor (for the partner) ———
 function renderReceived() {
   $('#fromList').replaceChildren(...received.slice(-30).reverse().map((n) => { const li = document.createElement('li'); li.innerHTML = `<span class="badge done">новое</span><span class="name" title="${esc(n)}">${esc(n)}</span>`; return li; }));
 }
 
 $('#add').onclick = () => api.pick().catch((e) => copyDone({ end: true, error: e.message }));
 
-// ——— Перетаскивание видео и папок в окно ———
-// Бросить можно в любое место окна: откроются «Входящие». Пока копируется — кнопка «Добавить видео» неактивна.
+// ——— Drag-and-drop of videos and folders into the window ———
+// You can drop anywhere in the window: "Inbox" opens. While copying, the "Add video" button is inactive.
 let copyTimer = null;
 function copyDone(p) {
   $('#add').disabled = false;

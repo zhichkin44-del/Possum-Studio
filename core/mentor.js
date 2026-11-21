@@ -1,37 +1,37 @@
-// Наставник: напарница спрашивает обычными словами — «чем угостить?», «как выложить?», «можно ли надеть костюмчик?».
-// Есть ключ — отвечает нейросеть по каталогу и правилам; нет ключа, ошибка или ответ не прошёл проверку — отвечает каталог по словам.
-// Имя питомца (settings.petNames) никогда не уходит в нейросеть и не показывается в ответе: заменяем на «зверёк».
+// Mentor: the user asks in plain words — "what can I treat them with?", "how do I post it?", "can I put a little costume on?".
+// With a key, a neural network answers from the catalog and the rules; without a key, on error, or if the answer fails the check — the catalog answers by keywords.
+// The pet's name (settings.petNames) never goes to the neural network and never appears in the answer: it is replaced with a generic word ("the critter").
 
 import { LIGHT } from './director.js';
 import { IDEAS, NO_COSTUME, SAFE_TREATS, FORBIDDEN, POSTING } from './ideas.js';
 
-// \w в JS не видит кириллицу — только \p{L} с флагом u
+// \w in JS does not match Cyrillic — only \p{L} with the u flag
 const BANNED = /вспышк|бел(ый|ого|ом) свет|включ\p{L}* свет|ярк\p{L}* свет|по имени/iu;
 const COSTUME = /одежд|костюм|наряд|одеть|одева|надеть|наде[нв]|шапочк|шлейк|поводок|свитер|платьиц/i;
-// Предложение с одеждой или запретной едой пропускаем, только если в нём твёрдое «нельзя» и нет разрешающего слова.
-// «вместо» и «безопасно» отказом не считаются («Вместо ужина дайте шоколад»). Лишняя тревога не страшна — ответит каталог.
-// Только твёрдый запрет и отдельное «нет». «не нужно», «не стоит», «запрещено» — не в счёт: «не нужно бояться» — это разрешение.
-// «вредный», «ядовитый», «опасно» — тоже не отказ: «Дай шоколад — вредный, но ничего» — это совет дать.
+// A sentence about clothing or forbidden food is skipped only if it contains a firm prohibition word ("not allowed") and no permissive word.
+// "instead" and "safe" do not count as refusals ("Instead of dinner, give chocolate"). An extra alarm is harmless — the catalog will answer.
+// Only a firm prohibition and a standalone "no" count. Phrases meaning "not needed", "not worth it", "forbidden" do not count: "no need to be afraid" is a permission.
+// "harmful", "poisonous", "dangerous" are not refusals either: "Give chocolate — harmful, but it's fine" is advice to give it.
 const NEGATION = /нельзя|не да(вать|вай|йте|ём|ем)|не корм|не наде|не одева|(?<![\p{L}])нет(?![\p{L}])/iu;
-// «дай», «не опасен», «не вредит», «не запрещено», «не бойтесь», «полезен», «ничего страшного», «мелочь» — это разрешение, а не отказ.
+// "give", "not dangerous", "not harmful", "not forbidden", "don't be afraid", "useful", "nothing serious", "a trifle" are permissions, not refusals.
 const PERMIT = /(?<!не\s)(?<![\p{L}])(можно|дай(?![\p{L}])|давай|дайте|дать|угост|угощайте|наденьте|надень|оденьте|одень|безопасн|полезн|полезен)|(?<![\p{L}])не\s+(опас|вред|запрещ|страш|бой|нужно бо|стоит бо)|бояться|ничего(?![\p{L}])|мелоч/iu;
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Только падежные окончания и ласкательные формы — не «любые 3 буквы», иначе «Мася» съедает «масло».
+// Only case endings and diminutive forms — not "any 3 letters", otherwise a pet's name would eat the word for "butter".
 const ENDINGS = [
   'а', 'я', 'у', 'ю', 'е', 'ы', 'и', 'о', 'ой', 'ей', 'ом', 'ем', 'ою', 'ею',
   'ка', 'ки', 'ке', 'ку', 'кой', 'ька', 'ьки', 'ьке', 'ьку', 'ькой', 'ик', 'ика', 'ику', 'ике', 'иком', 'чик', 'чика', 'чику', 'чиком',
   'очка', 'очки', 'очке', 'очку', 'очкой', 'ечка', 'ечки', 'ечке', 'ечку', 'ечкой', 'енька', 'еньки', 'еньке', 'еньку', 'енькой', 'уля', 'ули', 'уле', 'улю', 'улей',
 ].sort((a, b) => b.length - a.length).join('|');
 
-/** Заменить имена питомца на «зверёк» (без учёта регистра, с падежными окончаниями). */
+/** Replace the pet's names with "the critter" (case-insensitive, with case endings). */
 export function redactNames(text, petNames = []) {
   let out = String(text ?? '');
   for (const n of petNames || []) {
     const name = String(n || '').trim();
     if (name.length < 2) continue;
-    // Основа без последней гласной: Вова → Вов + а|у|е|ой|ка|очка…
+    // The stem without the last vowel: "Lusha" → "Lush" + endings such as a|u|e|oy|ka|…
     const stem = /[аяоеуыиюё]$/i.test(name) && name.length > 2 ? name.slice(0, -1) : name;
     out = out.replace(new RegExp(`(?<![\\p{L}])(?:${esc(name)}|${esc(stem)}(?:${ENDINGS})?)(?![\\p{L}])`, 'giu'), 'зверёк');
   }
@@ -40,14 +40,14 @@ export function redactNames(text, petNames = []) {
 
 const forbiddenIn = (text) => FORBIDDEN.filter(([root]) => new RegExp(`(?<![\\p{L}])${root}`, 'iu').test(text));
 
-/** Проверка ответа нейросети: нет запрещённого света, нет советов надеть одежду или дать запретную еду. */
+/** Check of a neural network answer: no forbidden light, no advice to put on clothes or give forbidden food. */
 export function unsafe(answer) {
   if (BANNED.test(answer)) return 'свет';
   for (const sentence of String(answer).split(/(?<=[.!?\n])\s*/)) {
     const costume = COSTUME.test(sentence);
     const food = forbiddenIn(sentence).length > 0;
     if (!costume && !food) continue;
-    // «Нарядиться может человек» — наряд на человеке, не на зверьке
+    // "a person may dress up" — the outfit is on a person, not on the pet
     if (costume && !food && /человек/i.test(sentence) && !/на него|\bему\b|зверь|поссум|питом/i.test(sentence)) continue;
     if (NEGATION.test(sentence) && !PERMIT.test(sentence)) continue;
     return costume ? 'одежда' : 'еда';
@@ -58,7 +58,7 @@ export function unsafe(answer) {
 const ideaRef = (id) => IDEAS.find((i) => i.id === id);
 const list = (xs) => xs.map((x) => `• ${x}`).join('\n');
 
-/** Ответ без нейросети: по ключевым словам вопроса. Порядок важен — сначала опасное. */
+/** Answer without a neural network: by the keywords of the question. Order matters — dangerous things first. */
 export function fallback(question) {
   const q = String(question || '').toLowerCase();
   const bad = forbiddenIn(q);
@@ -111,7 +111,7 @@ function context() {
   ].join('\n');
 }
 
-/** Ответ на вопрос. history — [{q, a}] последних реплик; имена из petNames вырезаются до отправки и из ответа. */
+/** Answer to a question. history — [{q, a}] of the latest replies; names from petNames are cut out before sending and from the answer. */
 export async function ask(question, { ai = null, history = [], petNames = [] } = {}) {
   const q = redactNames(String(question || '').slice(0, 1000), petNames);
   if (!q.trim()) return { ...fallback(''), source: 'catalog' };
@@ -125,7 +125,7 @@ export async function ask(question, { ai = null, history = [], petNames = [] } =
         const ideaIds = (Array.isArray(reply.ideaIds) ? reply.ideaIds : []).filter((id) => known.has(id)).slice(0, 3);
         return { answer, ideaIds, source: 'ai' };
       }
-    } catch { /* нет ключа или сеть — отвечает каталог */ }
+    } catch { /* no key or network — the catalog answers */ }
   }
   const fb = fallback(q);
   return { ...fb, answer: redactNames(fb.answer, petNames), source: 'catalog' };

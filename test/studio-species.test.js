@@ -1,4 +1,4 @@
-// Студия и «свой зверёк»: эталон один раз → пересчёт неотмеченных; «мой» учит модель; вид в текстах — только после «Да».
+// Studio and "my critter": reference once → recount of unmarked; "mine" teaches the model; the species in texts — only after "Yes".
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -27,12 +27,12 @@ function world(over = {}) {
   return { root, studio };
 }
 
-test('без модели: статус честно говорит «распознавание недоступно», эталона нет', () => {
+test('without a model: status honestly says "recognition unavailable", no reference', () => {
   const { studio } = world({ clipModelDir: null });
   assert.deepEqual(studio.status().species, { available: false, refs: 0 });
 });
 
-test('без эталона пачка просит снимки зверька; эталон дали — пересчёт и сборка', async () => {
+test('without a reference the batch asks for pet photos; reference given — recount and assembly', async () => {
   const species = fakeSpecies();
   const { studio } = world({ species });
   assert.deepEqual(studio.status().species, { available: true, refs: 0 });
@@ -47,12 +47,12 @@ test('без эталона пачка просит снимки зверька;
   assert.equal(studio.status().species.refs, 3);
 });
 
-test('пустой эталон — понятный отказ', async () => {
+test('empty reference — clear refusal', async () => {
   const { studio } = world({ species: fakeSpecies() });
   await assert.rejects(studio.setReference([]), /фото или видео/);
 });
 
-test('на снимках не видно зверька — отказ словами, без пересборки и без ошибки', async () => {
+test('pet not visible in the photos — refusal in words, no reassembly and no error', async () => {
   const species = fakeSpecies();
   species.addReference = async () => ({ added: 0, found: 0, needMore: true, failed: [], noAnimal: 3 });
   let built = 0;
@@ -61,10 +61,10 @@ test('на снимках не видно зверька — отказ слов
   assert.equal(r.added, 0);
   assert.match(r.refused, /не видно зверька/);
   assert.equal(built, 0);
-  assert.equal(r.decisions, undefined, 'пачку не пересобирали');
+  assert.equal(r.decisions, undefined, 'batch was not reassembled');
 });
 
-test('зверёк виден на 2 снимках из 3 нужных — просит ещё и называет нечитаемые', async () => {
+test('pet visible in 2 of the 3 needed photos — asks for more and names the unreadable ones', async () => {
   const species = fakeSpecies();
   species.addReference = async () => ({ added: 0, found: 2, needMore: true, failed: [{ file: 'x.mp4', error: 'битый' }], noAnimal: 1 });
   const { studio } = world({ species });
@@ -73,14 +73,14 @@ test('зверёк виден на 2 снимках из 3 нужных — пр
   assert.match(r.refused, /Не прочитались: x.mp4/);
 });
 
-test('«мой» в отметках учит модель, «не мой» — нет', async () => {
+test('"mine" in marks teaches the model, "not mine" does not', async () => {
   const species = fakeSpecies(); species.refsN = 1;
   const { studio } = world({ species });
   await studio.confirmPets({ v1: true, v2: false, v3: true });
   assert.deepEqual(species.learned, ['v1', 'v3']);
 });
 
-test('вид: пока не подтверждён — нет; «Да» сохраняет, «Другой зверь» стирает', () => {
+test('species: until confirmed — none; "Yes" saves, "Another animal" erases', () => {
   const { studio } = world({ species: fakeSpecies() });
   assert.equal(studio.masked().speciesName ?? null, null);
   studio.setSpecies({ ru: 'сахарный поссум', en: 'sugar glider', tag: 'сахарныйпоссум' });
@@ -90,7 +90,7 @@ test('вид: пока не подтверждён — нет; «Да» сохр
   assert.throws(() => studio.setSpecies({ en: 'x' }), /вид/);
 });
 
-test('итог эталона и отметки перечисляет отброшенные видео с причиной', async () => {
+test('reference and marks result lists discarded videos with a reason', async () => {
   const species = fakeSpecies(); species.refsN = 1;
   const { studio } = world({ species });
   const lib = studio.library();

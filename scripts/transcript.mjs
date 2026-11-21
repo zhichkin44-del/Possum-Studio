@@ -1,4 +1,4 @@
-// Показывает, как бот говорит с напарницей: прогон «день 1», «неделя 1», «день 100» в поддельном Telegram. Для проверок и отладки.
+// Shows how the bot talks to the user: a run of "day 1", "week 1", "day 100" in a fake Telegram. For checks and debugging.
 //   node scripts/transcript.mjs > transcript.txt
 import { makeWorld } from '../test/helpers.js';
 import { seedLongHistory } from '../test/seed.js';

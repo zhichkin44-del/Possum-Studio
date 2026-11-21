@@ -1,5 +1,5 @@
-// Продюсер: пачка видео → разбор (сигналы + Haiku) → библиотека → сюжеты → монтаж → календарь.
-// Ничего не выкладывает: каждый ролик — готовый пакет в своей папке и слот в календаре; выкладывает человек кнопкой.
+// Producer: a batch of videos → analysis (signals + Haiku) → library → stories → editing → calendar.
+// Publishes nothing: each video is a ready package in its own folder and a slot in the calendar; a person publishes it with the button.
 import { mkdirSync, statfsSync, writeFileSync, readFileSync, renameSync, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { makeSheet } from './vision.js';
@@ -15,7 +15,7 @@ import { dayKey } from './calendar.js';
 
 const r1 = (x) => Math.round(x * 10) / 10;
 
-/** Вариант B заголовка — крючок по виду сюжета (A — заголовок сюжета). */
+/** Title variant B — a hook based on the story type (A — the story title). */
 export const HOOK_VARIANTS = {
   top5: [
     { ru: 'Пять моментов, которые хочется пересмотреть', en: '5 moments worth watching again' },
@@ -59,7 +59,7 @@ const DESC = {
   asmr: ['Тихо, без музыки — только звук.', 'Без музыки: слышно, как зверёк ест.', 'Наденьте наушники — только живой звук.'],
   series: ['Эпизод из жизни нашего зверька.', 'Чем занят зверёк — смотрите.', 'Ещё один эпизод — пишите, что ждёте дальше.', 'Новая серия: зверёк за своими делами.'],
 };
-// Английский канал: свои тексты для англоязычной аудитории, не перевод русских.
+// English channel: its own texts for an English-speaking audience, not a translation of the Russian ones.
 const TAGS_EN = { top5: ['top5', 'cute'], day: ['dayinthelife'], beforeAfter: ['beforeandafter'], calm: ['calm'], asmr: ['asmr'], series: ['series'] };
 const DESC_EN = {
   top5: ['Five best moments. Which one is your favorite? Tell us in the comments.', 'Five moments from our little one\'s life. Which one wins?', 'The best moments in one clip. Which is the cutest?'],
@@ -73,7 +73,7 @@ const pickFrom = (d, story) => (Array.isArray(d) ? d[(story.variant ?? 0) % d.le
 const pickDesc = (story) => pickFrom(DESC[story.kind], story);
 const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const low1 = (s) => s.charAt(0).toLowerCase() + s.slice(1);
-/** Вид подтверждён владельцем — шаблонный заголовок его называет: «Сахарный поссум: пять моментов…». */
+/** The kind is confirmed by the owner — the template title names it: "Sugar Possum: five moments…". */
 export function withSpecies(title, sp) {
   if (!sp?.ru) return title;
   return { ru: `${cap1(sp.ru)}: ${low1(title.ru)}`, en: sp.en ? `${cap1(sp.en)}: ${low1(title.en ?? '')}` : title.en };
@@ -87,14 +87,14 @@ export function storyTexts(story, title, sp = null) {
   };
 }
 
-/** Свободное место на диске (байт) или null, если не узнать. */
+/** Free disk space (bytes) or null if unknown. */
 export function diskFree(path) {
   try { const s = statfsSync(path); return Number(s.bavail) * Number(s.bsize); } catch { return null; }
 }
 
 const mmss = (t) => { const x = Math.max(0, Math.round(t)); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}`; };
 
-/** Откуда каждый кусок ролика: время в ролике, исходное видео и время в нём — чтобы проверить каждый момент. */
+/** Where each piece of the video comes from: time in the video, the source video and the time in it — so that every moment can be checked. */
 export function storySources(story, lib) {
   let at = 0;
   return story.pieces.map((p) => {
@@ -104,7 +104,7 @@ export function storySources(story, lib) {
   });
 }
 
-/** Выбор заголовка A/B: в manifest.packages кладётся выбранный вариант (выкладка берёт packages). */
+/** Choice of title A/B: the chosen variant goes into manifest.packages (publishing takes packages). */
 export function applyPick(dir, pick) {
   const file = join(dir, 'manifest.json');
   const m = JSON.parse(readFileSync(file, 'utf8'));
@@ -118,14 +118,14 @@ export function applyPick(dir, pick) {
   return m;
 }
 
-/** Сюжет ночной: больше половины кусков из ночных клипов. */
-/** Ночная заметка о заботе — если хоть один кусок снят ночью: забота важнее статистики. */
-// В постах нельзя советовать свет, вспышку и «повторить» — зверёк ночной, ему это вредно.
+/** A night story: more than half of the pieces come from night clips. */
+/** Night care note — if at least one piece was shot at night: care matters more than statistics. */
+// Posts must not advise light, flash or "repeat" — the pet is nocturnal and it is harmful for it.
 const BANNED = /повтор|включите свет|вспышк/i;
 
 export const isNight = (story, lib) => story.pieces.some((p) => lib.get(p.clip)?.night);
 
-/** Почему модель не нашла зверька: видео тёмное (не ИК-ночь) — так и говорим, а не «нет вашего зверька». */
+/** Why the model did not find the pet: the video is dark (not an IR night) — we say exactly that, not "your pet is not there". */
 export function emptyWhy(c) {
   const shots = c?.shots ?? [];
   if (!shots.length) return 'зверька в кадре почти нет';
@@ -137,9 +137,9 @@ export function emptyWhy(c) {
 }
 
 /**
- * Что стало с видео, которое человек вернул кнопкой «Это мой зверёк»: вошло в новый ролик или почему нет.
- * why — причина от сборки (например, «такие виды уже были на этой неделе»). «Почти не попадает в кадр» —
- * только когда у видео правда нет ни одного годного куска.
+ * What happened to a video the person brought back with the "This is my pet" button: whether it went into a new video, or why not.
+ * why — the reason from assembly (e.g. "such kinds were already this week"). "Barely in frame" —
+ * only when the video really has no usable piece at all.
  */
 export function petFate(c, madeIds = [], why = null) {
   if (!c) return null;
@@ -154,7 +154,7 @@ export function petFate(c, madeIds = [], why = null) {
   return { id: c.id, name, inClip, text };
 }
 
-/** Видео со зверьком, где его не видно (зажат в кулаке): в ролики не берём и говорим, как переснять. */
+/** Videos with the pet where it is not visible (held in a fist): we do not use them in videos and say how to re-shoot. */
 export function reshootText(clips = []) {
   return clips.filter((c) => c?.pet === true && c.privacy?.hidden?.hidden && !(c.used ?? []).length)
     .map((c) => `${String(c.name ?? c.id).replace(/.[^.]+$/, '')}: зверька не видно, переснимите 2–3 с у мордочки — в ролики не взято`);
@@ -163,12 +163,12 @@ export function reshootText(clips = []) {
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many);
 const pieces = (n) => `${n} ${plural(n, 'кусок', 'куска', 'кусков')} видео`;
 
-/** Что доснять, если виды закрыты правилом «не повторять одно и то же»: из видов, которых давно не было. */
+/** What to shoot more of if kinds are blocked by the "do not repeat the same thing" rule: from kinds that have not appeared for a long time. */
 const SHOOT = { asmr: 'как зверёк ест — со звуком', beforeAfter: 'как спит, а потом просыпается', calm: 'спокойные моменты без прыжков', day: 'утро, день и вечер одного дня', top5: 'разные занятия: ест, лазает, играет', series: 'одно занятие несколько раз' };
 
 /**
- * Итог «не хватило» человеческими словами: сколько кусков ещё не в роликах, куда делись остальные,
- * и что доснять. closed — виды, которые материал позволяет, но они уже были на этой неделе.
+ * The "not enough" summary in human words: how many pieces are not in videos yet, where the rest went,
+ * and what to shoot more. closed — kinds the material allows, but they already happened this week.
  */
 export function moreText(s, k, closed = []) {
   const head = `Не хватило видео ещё на ${k} ${plural(k, 'ролик', 'ролика', 'роликов')}`;
@@ -189,7 +189,7 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   mkdirSync(outRoot, { recursive: true });
   mkdirSync(workRoot, { recursive: true });
 
-  /** Один файл: сигналы → библиотека → разбор Haiku. Ошибка файла не роняет пачку. */
+  /** One file: signals → library → Haiku analysis. An error in one file does not drop the whole batch. */
   async function ingestOne(file) {
     const info = await media.probe(file);
     if (!(info?.duration >= 1)) return { file, skipped: 'короче секунды — пропущен' };
@@ -204,13 +204,13 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
       by = v.by;
     }
     const verdict = await judgeSpecies(clip, file);
-    // лица людей и сигареты — вырезаются из планов до сюжетов (локальная модель, сеть не нужна)
+    // people's faces and cigarettes — cut out of the plans before the stories (local model, no network needed)
     let priv = null;
     const pc = lib.get(clip.id) ?? clip;
     if (privacy?.available && lib.setPrivacy && (added || !pc.privacy?.checked)) {
       try { priv = lib.setPrivacy(clip.id, await privacy.scan(lib.realPath(pc) ?? file), { pad: privacyPad }); } catch { priv = null; }
     }
-    // «не взято» — и по разбору кадров, и по решению модели/человека (pet === false); причина идёт в итог пачки
+    // "not taken" — both by the frame analysis and by the model/person decision (pet === false); the reason goes into the batch summary
     const c = lib.get(clip.id) ?? clip;
     const notPet = Boolean(c.vision?.notPet || c.pet === false);
     return { file, id: clip.id, added, by, night: clip.night, notPet, ...(notPet ? { why: c.petWhy ?? 'на видео нет вашего зверька' } : {}), ...(verdict ? { species: verdict } : {}), ...(priv?.kinds?.length ? { privacy: priv } : {}) };
@@ -219,9 +219,9 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   const canJudge = () => Boolean(species?.available && species.hasReference());
 
   /**
-   * Каждое видео перед сюжетами проходит проверку лиц и сигарет — даже разобранное раньше без модели.
-   * Проверка упала — видео в ролики не идёт, ошибка в итоге пачки. Модели нет вовсе — ролики собираются,
-   * но с пометкой «проверки не было» (unchecked), и человек смотрит их перед выкладкой.
+   * Every video goes through a check for faces and cigarettes before the stories — even one analysed earlier without the model.
+   * If the check failed — the video does not go into videos, and the error goes into the batch summary. With no model at all — videos are assembled,
+   * but marked "no check was done" (unchecked), and the person reviews them before publishing.
    */
   async function sweepPrivacy(onProgress, res) {
     if (!privacy) return { view: lib, unchecked: false };
@@ -248,8 +248,8 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   }
 
   /**
-   * Свой ли зверёк — по локальной модели и эталону. «Мой» — сразу в ролики; «не он» и «пусто» — не берём;
-   * «не уверен» (и спор с Claude) — человеку одной пачкой. Вид, отмеченный человеком, не перерешивается.
+   * Is it our pet — by the local model and the reference. "Mine" — straight into videos; "not him" and "empty" — not taken;
+   * "not sure" (and a dispute with Claude) — to the person in one batch. A kind marked by a person is not decided again.
    */
   async function judgeSpecies(clip, file = null) {
     const c = lib.get(clip.id) ?? clip;
@@ -261,20 +261,20 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
     return j.verdict;
   }
 
-  /** Эталон дали — решить все видео, где вид ещё не решён (решённое моделью или человеком не трогаем). */
+  /** The reference was given — decide all videos whose kind is still undecided (decisions made by the model or a person are left alone). */
   async function rejudge() {
     const out = {};
     if (!canJudge()) return out;
     for (const c of lib.all()) {
       if (c.vision?.notPet || c.pet != null) continue;
-      try { out[c.id] = await judgeSpecies(c); } catch { /* видео пропало — останется неотмеченным */ }
+      try { out[c.id] = await judgeSpecies(c); } catch { /* the video is gone — it stays unmarked */ }
     }
     return out;
   }
 
   /**
-   * Обложка: самый чёткий, нормально освещённый кадр ролика (bestCoverAt), но взятый из исходника —
-   * без подписи «№», тёмный кадр высветлен. Не вышло — кадр готового ролика; и это не вышло — обложку можно взять в приложении.
+   * Cover: the sharpest, normally lit frame of the video (bestCoverAt), but taken from the source —
+   * without the "No." caption, a dark frame is brightened. If that fails — a frame of the finished video; and if that fails too — the cover can be taken in the app.
    */
   async function storyCover(story, video, cover, first) {
     let coverAt = Math.max(0.1, Math.min(first.len - 0.1, first.peak ?? first.len / 2));
@@ -283,17 +283,17 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
       const sig = await media.signals(video);
       coverAt = bestCoverAt(sig) ?? coverAt;
       if (sig?.step && sig.luma?.length) luma = sig.luma[Math.min(sig.luma.length - 1, Math.round(coverAt / sig.step))] ?? 120;
-    } catch { /* остаётся лучший момент первого куска */ }
+    } catch { /* the best moment of the first piece remains */ }
     try {
       const inputs = storyInputs(story, lib);
       const hit = pieceAt(inputs, coverAt);
       await media.ffmpeg(coverArgs({ src: hit.piece.src, at: hit.srcAt, orient: hit.piece.orient, out: cover, luma }));
       return;
-    } catch { /* ниже — кадр из готового ролика */ }
-    try { await makeCover({ video, at: coverAt, out: cover, media }); } catch { /* обложку можно взять кадром в приложении */ }
+    } catch { /* below — a frame from the finished video */ }
+    try { await makeCover({ video, at: coverAt, out: cover, media }); } catch { /* the cover can be taken as a frame in the app */ }
   }
 
-  /** Тексты к ролику от Claude по фактам сюжета; нет ключа, ошибка или запретное слово — шаблон с причиной. */
+  /** Texts for the video from Claude based on the story facts; no key, an error or a forbidden word — a template with the reason. */
   async function claudeTexts(story, draft, night) {
     if (!ai?.enabled) return { source: 'шаблон', reason: 'нет ключа ИИ — тексты по шаблону' };
     let r;
@@ -309,7 +309,7 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
     return r;
   }
 
-  /** Сюжет → папка с mp4, обложкой, текстами A/B, manifest.json, пост.txt; слот в календаре. */
+  /** Story → a folder with mp4, cover, texts A/B, manifest.json, post.txt; a slot in the calendar. */
   async function produce(story) {
     const dir = join(outRoot, `${calendar.nextFree?.() ?? dayKey(now())}_${story.id}`);
     mkdirSync(dir, { recursive: true });
@@ -318,19 +318,19 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
     await renderStory({ story, lib, out: video, workDir: join(workRoot, story.id), font, media, music });
     const first = story.pieces[0];
     const cover = join(dir, 'cover.jpg');
-    // обложка — лучший момент первого куска (где зверька лучше всего видно)
+    // cover — the best moment of the first piece (where the pet is best visible)
     await storyCover(story, video, cover, first);
 
     const titles = { A: withSpecies(story.title, speciesName), B: withSpecies(titleB(story), speciesName) };
     const night = isNight(story, lib);
-    // Ключ Claude есть — тексты A пишет Claude; источник ставится по факту ответа, B остаётся шаблоном.
+    // If there is a Claude key, Claude writes texts A; the source is set by the fact of the reply, B stays a template.
     const t = await claudeTexts(story, story.title, night);
     if (t.source === 'claude') titles.A = { ru: t.titleRu, en: t.titleEn };
     const textsA = t.source === 'claude' ? t : storyTexts(story, titles.A, speciesName);
     const textsB = storyTexts(story, titles.B, speciesName);
     const packagesA = buildPackages(textsA, { petNames, speciesName });
     const packagesB = buildPackages(textsB, { petNames, speciesName });
-    // второй канал — английский: та же картинка, тексты для англоязычной аудитории
+    // the second channel is English: the same picture, texts for an English-speaking audience
     const packagesEnA = buildPackages(textsA, { petNames, speciesName, lang: 'en' });
     const packagesEnB = buildPackages(textsB, { petNames, speciesName, lang: 'en' });
     const manifest = {
@@ -354,8 +354,8 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   }
 
   /**
-   * Лучший свободный план на замену убранного момента (pieces — что осталось в ролике):
-   * не больше 2 моментов с одного видео, видео не из соседних по календарю роликов и не уже в 2 роликах за неделю.
+   * The best free plan to replace the removed moment (pieces — what is left in the video):
+   * no more than 2 moments from one video, the video is not from a neighbouring calendar video and not already in 2 videos this week.
    */
   function replacementFor(story, pieces) {
     const per = {};
@@ -379,9 +379,9 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   }
 
   /**
-   * «Убрать момент»: человек увидел, что в моменте зверька не видно (или не тот зверёк).
-   * План помечается «нет зверька» (в сюжеты больше не идёт), ролик перемонтируется без него,
-   * в топ-5 на его место встаёт свежий момент. Обложка, источники, пост.txt и заметки — заново.
+   * "Remove moment": the person saw that the pet is not visible in the moment (or it is not the right pet).
+   * The plan is marked "no pet" (it no longer goes into stories), the video is re-edited without it,
+   * a fresh moment takes its place in the top 5. Cover, sources, post.txt and notes — again.
    */
   async function removePiece(dir, idx) {
     const file = join(dir, 'manifest.json');
@@ -425,8 +425,8 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
 
   return {
     /**
-     * Пачка файлов целиком. onProgress({stage, i, n, name, eta}) — eta в секундах (по средней длительности шага).
-     * Возвращает {files, made, decisions, stats, disk}.
+     * The whole batch of files. onProgress({stage, i, n, name, eta}) — eta in seconds (by the average step duration).
+     * Returns {files, made, decisions, stats, disk}.
      */
     async run(files, onProgress = () => {}) {
       const res = { files: [], made: [], decisions: [], errors: [], stats: null, disk: diskFree(outRoot) };
@@ -449,8 +449,8 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
   };
 
   /**
-   * Сборка роликов из того, что уже в библиотеке. Есть локальная модель — без эталона просим 3–5 снимков один раз,
-   * с эталоном монтируем узнанное, неуверенные — человеку одной пачкой. Нет модели и Claude — человек отмечает всё.
+   * Assembling videos from what is already in the library. There is a local model — without a reference we ask for 3–5 shots once,
+   * with the reference we edit what is recognized, and unsure ones go to the person in one batch. No model and no Claude — the person marks everything.
    */
   async function build(onProgress = () => {}, { disk = diskFree(outRoot), focus = null } = {}) {
     const res = { files: [], made: [], decisions: [], errors: [], stats: null, disk };
@@ -463,14 +463,14 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
       const sheet = (id) => { const f = join(workRoot, 'sheets', `${id}.jpg`); return existsSync(f) ? f : null; };
       const wait = lib.pending?.() ?? [];
       if (species?.available && !species.hasReference()) {
-        // модель есть, эталона нет: один раз просим снимки зверька, дальше узнаём сами
+        // the model is there, the reference is not: we ask for pet photos once, then we recognize it ourselves
         res.decisions.push({ type: 'reference', text: 'Покажите вашего зверька: 3–5 фото или видео, где его хорошо видно. Это один раз — дальше узнаю его сам.' });
         onProgress({ stage: 'ждёт снимков зверька', i: 0, n: 0, name: '', eta: 0 });
         res.stats = lib.stats();
         return res;
       }
       if (wait.length && canJudge()) {
-        // модель узнаёт сама; человеку — только те, где не уверена. Монтаж идёт без них.
+        // the model recognizes it itself; the person gets only those it is unsure about. Editing goes on without them.
         res.decisions.push({ type: 'confirm', clips: wait.map((c) => ({ id: c.id, name: c.name, sheet: sheet(c.id), video: lib.realPath?.(c) ?? null })), text: `Не уверен в ${wait.length} видео. Отметьте, где ваш зверёк, и нажмите «Собрать ролики». Не отмеченные не возьму.` });
       } else if (wait.length) {
         res.decisions.push({ type: 'confirm', clips: wait.map((c) => ({ id: c.id, name: c.name, sheet: sheet(c.id), video: lib.realPath?.(c) ?? null })), text: `Отметьте, где ваш зверёк: по 9 кадрам из каждого видео. Видео с другим животным в ролики не попадут.` });
@@ -478,13 +478,13 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
         res.stats = lib.stats();
         return res;
       }
-      // приватность до сюжетов: видео, разобранное без модели или с упавшей проверкой, досматривается сейчас
+      // privacy before the stories: videos analysed without the model or with a failed check are reviewed now
       const pv = await sweepPrivacy(onProgress, res);
       const free = calendar.free();
       if (free === 0) {
         res.decisions.push({ type: 'full', text: 'Календарь на 14 дней заполнен — новые ролики соберу, когда освободится день' });
       } else {
-        // сюжет того же типа, что сценарий дня, монтируется в порядке кадров сценария
+        // a story of the same type as the day's scenario is edited in the order of the scenario's frames
         const labelsOf = (p) => lib.get(p.clip)?.shots?.[p.shot]?.labels ?? [];
         const stories = makeStories(pv.view, { history: calendar.history(), now: now(), count: Math.min(maxStories, free), focus }).map((st) => orderByScenario(st, scenario, labelsOf));
         for (const s of stories) {
@@ -508,12 +508,12 @@ export function createProducer({ lib, calendar, vision, media, outRoot, workRoot
         const want = Math.min(maxStories, free);
         const not = whyNotKinds(lib, stories, { history: calendar.history(), now: now() });
         if (stories.length < want) {
-          // честная причина простыми словами: сколько кусков ещё не в роликах, почему не собрались и что доснять
+          // an honest reason in plain words: how many pieces are not in videos yet, why they were not assembled, and what to shoot more of
           const s = lib.supply?.();
           res.decisions.push({ type: 'more', text: moreText(s, want - stories.length, not.filter((w) => w.gated)) });
         }
         for (const t of reshootText(lib.all?.() ?? [])) res.decisions.push({ type: 'reshoot', text: t });
-        // какие виды не собраны и почему — чтобы было видно, чего не хватает в пачке
+        // which kinds were not assembled and why — so it is visible what the batch lacks
         for (const w of not) res.decisions.push({ type: 'missing', kind: w.kind, gated: w.gated, text: `«${w.name}» не собран: ${w.why}` });
       }
     }

@@ -1,4 +1,4 @@
-// Мастер: шаг «Ключ Claude — ввести сейчас или позже», с расходом по прайсу из кода. Ключ вводит только владелец.
+// Wizard: the "Claude key — enter now or later" step, with the cost from the price list in the code. Only the owner enters the key.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -10,7 +10,7 @@ const app = readFileSync(new URL('../app/ui/app.js', import.meta.url), 'utf8');
 const main = readFileSync(new URL('../app/main.js', import.meta.url), 'utf8');
 const pre = readFileSync(new URL('../app/preload.cjs', import.meta.url), 'utf8');
 
-test('расход на тексты считается по прайсу из кода, а не из головы', () => {
+test('text spend is computed from the price table in code, not from memory', () => {
   const p = PRICES['claude-opus-5-5'];
   assert.ok(p && p.in > 0 && p.out > 0);
   const c = textCost('claude-opus-5-5');
@@ -18,10 +18,10 @@ test('расход на тексты считается по прайсу из �
   assert.ok(c.perClipMax > c.perClip && c.perClip > 0);
   const expectMax = (c.inTokens * p.in + c.maxOut * p.out) / 1e6;
   assert.ok(Math.abs(c.perClipMax - expectMax) < 1e-9);
-  assert.equal(textCost('claude-unknown-9'), null, 'неизвестная модель — расход не выдумываем');
+  assert.equal(textCost('claude-unknown-9'), null, 'unknown model — we do not invent the spend');
 });
 
-test('мастер: карточка «Ключ ИИ» с выбором «сейчас / позже» и пояснением про черновые тексты', () => {
+test('wizard: "AI key" card with "now / later" choice and a note about draft texts', () => {
   assert.match(html, /id="wzKey"/);
   const card = html.slice(html.indexOf('id="wzKey"'), html.indexOf('</div>', html.indexOf('id="wzKeyLater"')));
   assert.match(card, /id="wzKeyIn"[^>]*type="password"/);
@@ -32,22 +32,22 @@ test('мастер: карточка «Ключ ИИ» с выбором «се�
   assert.match(card, /только владел|только монтажёр/);
 });
 
-test('проводка: владелец и «один» видят шаг ключа, напарница — нет; ключ сохраняется через настройки', () => {
+test('wiring: owner and "solo" see the key step, partner does not; key is saved via settings', () => {
   assert.match(main, /ipcMain\.handle\('ai:price'/);
   assert.match(pre, /aiPrice: \(\) => ipcRenderer\.invoke\('ai:price'\)/);
   assert.match(app, /function keyStep\(/);
   assert.match(app, /saveSettings\(\{ claudeKey/);
   const save = app.slice(app.indexOf("$('#wzKeySave').onclick"), app.indexOf("$('#wzKeyIn').onkeydown"));
-  assert.match(save, /warning[\s\S]*return/, 'ключ не сохранился (нет шифрования) — мастер не идёт дальше, показывает предупреждение');
-  assert.match(save, /finally\s*\{[^}]*\$\('#wzKeyIn'\)\.value = ''/, 'поле ключа очищается в finally: после сохранения, при NO_CRYPTO и при ошибке');
-  assert.ok(save.indexOf('finally') > save.indexOf('catch'), 'finally — после catch');
+  assert.match(save, /warning[\s\S]*return/, 'key was not saved (no encryption) — wizard does not proceed, shows a warning');
+  assert.match(save, /finally\s*\{[^}]*\$\('#wzKeyIn'\)\.value = ''/, 'key field is cleared in finally: after saving, on NO_CRYPTO and on error');
+  assert.ok(save.indexOf('finally') > save.indexOf('catch'), 'finally comes after catch');
   const solo = app.slice(app.indexOf("$('#wzSolo').onclick"), app.indexOf('\n', app.indexOf("$('#wzSolo').onclick")));
   assert.match(solo, /keyStep\(/);
   const fin = app.slice(app.indexOf("$('#wzFinish').onclick"), app.indexOf('\n', app.indexOf("$('#wzFinish').onclick")));
   assert.match(fin, /wzRole === 'partner'/);
 });
 
-// Поведение, а не только текст: app.js запускается в node:vm на заглушках окна; api.saveSettings бросает ошибку.
+// Behaviour, not just text: app.js runs in node:vm on window stubs; api.saveSettings throws an error.
 function runWizard(src, saveSettings) {
   const els = new Map();
   const noop = () => {};
@@ -60,10 +60,10 @@ function runWizard(src, saveSettings) {
     querySelectorAll: () => [],
     body: el(),
   };
-  const never = () => new Promise(noop); // остальные вызовы окна не нужны этому тесту
+  const never = () => new Promise(noop); // the other window calls are not needed by this test
   const api = new Proxy({ saveSettings }, { get: (t, k) => (k in t ? t[k] : never) });
   const window = { possum: api, addEventListener: noop };
-  const PossumForm = { getPath: noop, setPath: noop, formPatch: () => ({}), isShown: () => false }; // form.js проверяет form.test.js
+  const PossumForm = { getPath: noop, setPath: noop, formPatch: () => ({}), isShown: () => false }; // form.js is checked by form.test.js
   vm.runInNewContext(src, { document, window, PossumForm, setInterval: noop, setTimeout: noop, console });
   return (s) => document.querySelector(s);
 }
@@ -73,19 +73,19 @@ for (const [why, saveSettings] of [
   ['saveSettings вернул «не сохранён» (NO_CRYPTO)', async () => ({ warning: 'Ключ не сохранён' })],
   ['ключ сохранён', async () => ({})],
 ]) {
-  test(`мастер: после «Сохранить» поле ключа пустое — ${why}`, async () => {
+  test(`wizard: after "Save" the key field is empty — ${why}`, async () => {
     const $ = runWizard(app, saveSettings);
     $('#wzKeyIn').value = 'sk-ant-REDACTED';
     await $('#wzKeySave').onclick();
-    assert.equal($('#wzKeyIn').value, '', 'ключ не остаётся в поле');
-    if (why.includes('исключение')) assert.match($('#wzKeyMsg').innerHTML, /сбой записи/, 'ошибка показана');
+    assert.equal($('#wzKeyIn').value, '', 'key does not remain in the field');
+    if (why.includes('исключение')) assert.match($('#wzKeyMsg').innerHTML, /сбой записи/, 'error is shown');
   });
 }
 
-test('мастер: проверка поведения ловит старый код — без finally при исключении ключ остаётся в поле', async () => {
+test('wizard: behaviour check catches old code — without finally, on exception the key stays in the field', async () => {
   const fin = "finally { $('#wzKeyIn').value = ''; }";
   assert.ok(app.includes(fin));
-  const old = app.replace(fin, ''); // как было до PR #16: очистка только после успешного await
+  const old = app.replace(fin, ''); // as it was before PR #16: clearing only after a successful await
   assert.doesNotThrow(() => new vm.Script(old));
   const $ = runWizard(old, async () => { throw new Error('сбой записи'); });
   $('#wzKeyIn').value = 'sk-ant-REDACTED';

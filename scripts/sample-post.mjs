@@ -1,5 +1,5 @@
-// Собирает образец готового поста настоящим монтажом из синтетического клипа (для проверки заставки, обложки, листа проверки).
-//   node scripts/sample-post.mjs <папка-вывода> [заголовок]
+// Builds a sample finished post with real editing from a synthetic clip (to check the intro card, the cover and the check sheet).
+//   node scripts/sample-post.mjs <output folder> [title]
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

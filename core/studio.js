@@ -1,5 +1,5 @@
-// Студия целиком для бота и приложения: настройки, монтаж, вход в площадки, выкладка по кнопке.
-// Ключи живут только в settings.json владельца; наружу (в бот, в окно, в лог) уходят замаскированными.
+// The whole studio for the bot and the app: settings, editing, platform sign-in, publishing by button.
+// Keys live only in the owner's settings.json; they go out (to the bot, the window, the log) masked.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadSettings, saveSettings, maskSettings, redactSecrets, settingsPath, oldKeyWarning, NO_CRYPTO, NO_CRYPTO_SIGNIN } from './settings.js';
@@ -24,7 +24,7 @@ import { signIn } from './oauth.js';
 
 export { PLATFORMS };
 
-/** Маски «•••1234» с экрана настроек отбрасывает сам saveSettings; здесь — для старых вызовов и тестов. */
+/** Masks "•••1234" from the settings screen are discarded by saveSettings itself; here — for old calls and tests. */
 export { dropMasked } from './settings.js';
 
 export function createStudio({ path = settingsPath(), dataRoot, media = createMedia(), fetchImpl = fetch, aiFactory = createAi, log = () => {}, visionClient = null, now = () => Date.now(), clipModelDir = process.env.POSSUM_CLIP_MODEL ?? null, species: speciesOverride = null, privacy: privacyOverride = null } = {}) {
@@ -47,17 +47,17 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     } catch (e) { throw safe(e); }
   }
 
-  // Библиотека и календарь — одни на всё приложение; разбор и продюсер создаются на каждую пачку (подхватывают новый ключ).
+  // The library and the calendar are shared across the whole app; analysis and the producer are created per batch (they pick up a new key).
   let lib = null; let cal = null;
   const library = () => (lib ??= createLibrary({ path: join(dataRoot, '.library.json'), baseDir: dataRoot, now }));
   const calendar = () => (cal ??= createCalendar({ path: join(dataRoot, 'calendar.json'), now }));
-  // «Свой ли зверёк» — локальная модель кадров; модели нет — species.available false, человек отмечает всё сам.
-  // Одна модель кадров на «свой ли зверёк» и на фильтр лиц и сигарет.
+  // "Is it your pet" — a local frame model; without the model — species.available false, the person marks everything by hand.
+  // One frame model is used both for "is it your pet" and for the face and cigarette filter.
   let emb = null;
   const embedder = () => (emb ??= createClipEmbedder({ modelDir: clipModelDir, ffmpeg: media.tools?.ffmpeg, ffprobe: media.tools?.ffprobe }));
   let sp = speciesOverride;
   const species = () => (sp ??= createSpecies({ dataRoot, embedder: embedder() }));
-  // Лица людей и сигареты в ролики не берём; модели нет — privacy.available false, ролики как раньше.
+  // People's faces and cigarettes are not used in videos; without the model — privacy.available false, videos as before.
   let pv = privacyOverride;
   const privacy = () => {
     if (pv) return pv;
@@ -66,7 +66,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return (pv = createPrivacy({ embedder: embedder(), labels }));
   };
 
-  // «Что снять сегодня»: сценарий пишется раз в день (ИИ — если есть ключ) и лежит в .today.json; монтаж идёт по последнему.
+  // "What to shoot today": the scenario is written once a day (AI — if there is a key) and stored in .today.json; editing uses the latest one.
   const todayPath = join(dataRoot, '.today.json');
   const storedToday = () => { try { return JSON.parse(readFileSync(todayPath, 'utf8')).scenario ?? null; } catch { return null; } };
   async function today({ refresh = false } = {}) {
@@ -81,17 +81,17 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return { scenario, coverage: coverage(scenario, library().all()) };
   }
 
-  /** «Идеи и советы»: каталог идей и наставник. Имя питомца в нейросеть не уходит. */
+  /** "Ideas and advice": the idea catalog and the mentor. The pet's name does not go to the neural network. */
   const ideas = () => catalog();
   async function mentor(question, history = []) {
     const s = settings();
     return ask(question, { ai: aiFactory({ apiKey: s.claudeKey, model: s.model, fetchImpl }), history, petNames: s.petNames ?? [] });
   }
 
-  /** Пачка видео целиком: разбор → сюжеты → пакеты → слоты календаря. Ничего не выкладывает. */
+  /** A whole batch of videos: analysis → stories → packages → calendar slots. Publishes nothing. */
   function makeProducer() {
     const s = settings();
-    const viaOr = providerOf(s.claudeKey) === 'openrouter'; // OpenRouter: разбор той же моделью, что тексты; Claude: Haiku через SDK
+    const viaOr = providerOf(s.claudeKey) === 'openrouter'; // OpenRouter: analysis with the same model as the texts; Claude: Haiku through the SDK
     const vision = createVision({ apiKey: s.claudeKey, client: s.claudeKey && !viaOr ? visionClient : null, model: viaOr ? s.model : undefined, fetchImpl, cachePath: join(dataRoot, '.vision-cost.json'), now, petNames: s.petNames ?? [] });
     return createProducer({
       lib: library(), calendar: calendar(), vision, media, outRoot, workRoot: join(dataRoot, '.work'),
@@ -107,15 +107,15 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     const producer = makeProducer();
     let r;
     try { r = await producer.run(files, onProgress); } catch (e) { throw safe(e); }
-    // Ошибки по файлам и сюжетам ловит продюсер — вымарываем ключи и тут, итог уходит в окно и в .jobs.json.
+    // The producer catches errors per file and per story — we strip keys here too, since the summary goes to the window and to .jobs.json.
     r.errors = r.errors.map((x) => ({ ...x, error: redactSecrets(x.error, s) }));
     return r;
   }
 
   /**
-   * Человек отметил по листам кадров, где его зверёк: { id: true|false }. Потом — сборка роликов из отмеченного.
+   * The person marked from the frame sheets where his pet is: { id: true|false }. Then — assembly of videos from the marked ones.
    */
-  /** Отброшенные видео (моделью или человеком) с причиной — для итога пачки и статуса во «Входящих». */
+  /** Discarded videos (by the model or by a person) with the reason — for the batch summary and the status in "Inbox". */
   const rejected = () => library().all().filter((c) => c.pet === false).map((c) => ({ id: c.id, name: c.name, why: c.petWhy ?? null }));
 
   async function confirmPets(marks = {}, onProgress = () => {}) {
@@ -123,11 +123,11 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     const lib = library();
     for (const [id, yes] of Object.entries(marks ?? {})) {
       lib.setPet(id, yes);
-      if (yes) try { species().learn(id); } catch { /* учёба не обязательна для сборки */ }
+      if (yes) try { species().learn(id); } catch { /* learning is not required for assembly */ }
     }
     const out = rejected();
     let r;
-    // отмеченные «Это мой зверёк» идут в сборку первыми: человек их вернул — значит, хочет видеть в ролике
+    // videos marked "This is my pet" go into assembly first: the person brought them back, so they want to see them in the video
     const focus = new Set(Object.entries(marks ?? {}).filter(([, y]) => y).map(([id]) => id));
     try { r = await makeProducer().build(onProgress, { focus }); } catch (e) { throw safe(e); }
     r.rejected = out; r.notPet = out.length;
@@ -140,13 +140,13 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return r;
   }
 
-  /** Эталон «вот мой зверёк»: 3–5 фото или видео один раз. Потом — пересчёт неотмеченных видео и сборка. */
+  /** The reference "this is my pet": 3–5 photos or videos, once. Then — recalculation of unmarked videos and assembly. */
   async function setReference(files = [], onProgress = () => {}) {
     const list = (files ?? []).filter(Boolean);
     if (!list.length) throw new Error('Выберите 3–5 фото или видео, где хорошо видно вашего зверька');
     const s = settings();
     const ref = await species().addReference(list);
-    // зверька на снимках мало — эталон не сохранён: объясняем словами, пачку не трогаем
+    // too few pet shots — the reference is not saved: we explain in words and leave the batch alone
     if (!ref.added) {
       const name = (f) => String(f?.file ?? f).split(/[\\/]/).pop();
       const bad = ref.failed?.length ? ` Не прочитались: ${ref.failed.map(name).join(', ')}.` : '';
@@ -166,14 +166,14 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return { added: ref.added, failed: ref.failed, ...r, rejected: out, notPet: out.length };
   }
 
-  /** Вид зверька подтверждает только владелец («Да»); null — «Другой зверь»: тексты снова не называют вид. */
+  /** Only the owner confirms the pet's species ("Yes"); null — "Another animal": the texts no longer name the species. */
   function setSpecies(name) {
     if (name != null && !String(name.ru ?? '').trim()) throw new Error('Не указан вид зверька');
     const v = name == null ? null : { ru: String(name.ru).trim(), en: name.en ? String(name.en).trim() : null, tag: name.tag ? String(name.tag).trim() : null };
     return maskSettings(saveSettings(path, { speciesName: v, speciesAsked: true }));
   }
 
-  /** Ближайшие слоты (не выложенные и не пропущенные) и сколько дней свободно. */
+  /** The nearest slots (not published and not skipped) and how many days are free. */
   function upcoming() {
     const c = calendar();
     return { slots: c.all().filter((x) => x.status !== 'published' && x.status !== 'skipped'), free: c.free(), hour: c.hour, history: c.history() };
@@ -185,7 +185,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     return slot;
   }
 
-  /** «Убрать момент» idx из ролика id: ролик перемонтируется, пост.txt и заметки — заново. */
+  /** "Remove moment" idx from video id: the video is re-edited, post.txt and notes are rebuilt. */
   async function removeMoment(id, idx) {
     const slot = calendar().get(id);
     if (!slot?.dir || !existsSync(join(slot.dir, 'manifest.json'))) throw new Error('Ролик не найден');
@@ -197,7 +197,7 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     } catch (e) { throw safe(e); }
   }
 
-  /** Пара с напарницей: null, пока не настроена. */
+  /** The pair with the partner: null until it is set up. */
   function pairing() {
     const p = settings().pair;
     if (!p?.role || !p?.sharedDir) return null;
@@ -212,8 +212,8 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
 
   const readManifest = (dir) => JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'));
 
-  /** confirm должен прийти только из нажатия кнопки владельцем. */
-  const inFlight = new Set(); // «файл|площадка» — пока идёт выкладка, второй раз не начинаем
+  /** confirm must come only from the owner pressing the button. */
+  const inFlight = new Set(); // "file|platform" — while publishing is in progress, we do not start a second time
   async function publish(platform, manifestOrDir, { confirm = false } = {}) {
     const manifest = typeof manifestOrDir === 'string' ? readManifest(manifestOrDir) : manifestOrDir;
     const key = `${manifest.outputs?.[platform === 'instagram' ? 'reels' : platform]}|${platform}`;
@@ -221,17 +221,17 @@ export function createStudio({ path = settingsPath(), dataRoot, media = createMe
     inFlight.add(key);
     try {
       const s = settings();
-      // TikTok меняет refresh-токен при обновлении: сохраняем сразу, даже если загрузка потом упадёт
+      // TikTok changes the refresh token on renewal: we save it right away, even if the upload fails later
       const onRefreshToken = (t) => {
-        if (saveSettings(path, { tiktok: { refreshToken: t } }).warnings?.includes(NO_CRYPTO)) log('TikTok: новый токен не сохранён — шифрование Windows недоступно; в следующий раз войдите в TikTok заново');
+        if (saveSettings(path, { tiktok: { refreshToken: t } }).warnings?.includes(NO_CRYPTO)) log('TikTok: new token not saved — Windows encryption is unavailable; next time sign in to TikTok again');
       };
       const res = await publishOne(platform, manifest, { settings: s, log: published, fetchImpl, confirm, onRefreshToken });
-      log(`выкладка ${platform}: ${res.skipped ? 'уже было' : res.manual ? 'ручной пакет' : res.id}`);
+      log(`publish ${platform}: ${res.skipped ? 'already done' : res.manual ? 'manual package' : res.id}`);
       return res;
     } finally { inFlight.delete(key); }
   }
 
-  /** Вход владельца: открывает браузер, ждёт ответ на 127.0.0.1, сохраняет refresh-токен. Возвращает только «подключено». */
+  /** The owner's sign-in: opens the browser, waits for the reply on 127.0.0.1, saves the refresh token. Returns only "connected". */
   async function connect(kind, openUrl) {
     const s = settings();
     const creds = kind === 'youtube' ? s.youtube : s.tiktok;

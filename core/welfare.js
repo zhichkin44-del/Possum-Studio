@@ -1,5 +1,5 @@
-// Благополучие зверька выше контента: свет не просим, вспышку отмечаем.
-// Совет зависит от вида ролика, чтобы в постах не стоял один и тот же абзац.
+// The pet's well-being comes before content: we do not ask for light, we mark a flash.
+// The advice depends on the kind of video, so that the same paragraph does not appear in every post.
 const BY_KIND = {
   top5: 'Это нарезка того, что уже снято: ничего не нужно повторять или разыгрывать заново.',
   day: 'Днём зверёк спит: днём снимайте только издалека и не будите его ради кадра.',

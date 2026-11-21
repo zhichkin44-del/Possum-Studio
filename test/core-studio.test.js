@@ -1,5 +1,5 @@
-// Ядро студии для бота и приложения: настройки не затираются масками, ключи не утекают, выкладка только с confirm.
-// Все ключи здесь выдуманные, сеть подменена.
+// Studio core for the bot and the app: settings are not overwritten by masks, keys do not leak, publishing only with confirm.
+// All keys here are made up, network stubbed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { createStudio, dropMasked } from '../core/studio.js';
 import { loadSettings, setVault, OLD_KEY, NO_CRYPTO, NO_CRYPTO_SIGNIN } from '../core/settings.js';
 import { fakeVault } from './vault.js';
 
-setVault(fakeVault()); // в окне ключи шифрует Electron safeStorage; здесь — его подделка
+setVault(fakeVault()); // in the window, keys are encrypted by Electron safeStorage; here — its fake
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'possum-studio-'));
 const noMedia = { tools: { ffmpeg: 'ffmpeg' }, async signals() { throw new Error('не нужен'); } };
@@ -44,14 +44,14 @@ function manifestIn(root) {
   return m;
 }
 
-test('dropMasked: маски выкидываются, пустой секрет остаётся (это «удалить ключ»), обычные поля остаются', () => {
+test('dropMasked: masks are dropped, an empty secret stays (this is "delete key"), ordinary fields stay', () => {
   assert.deepEqual(
     dropMasked({ claudeKey: '•••1234', model: 'm', youtube: { clientId: 'id', clientSecret: '', refreshToken: '•••abcd' }, petNames: ['А'] }),
     { model: 'm', youtube: { clientId: 'id', clientSecret: '' }, petNames: ['А'] },
   );
 });
 
-test('настройки: экран показывает маску, а сохранение маски не затирает ключ', () => {
+test('settings: the screen shows the mask, and saving the mask does not overwrite the key', () => {
   const { path, studio } = world();
   studio.save({ claudeKey: 'test-key-000000abcd', youtube: { clientId: 'cid', clientSecret: 'test-secret-9999' } });
   const shown = studio.masked();
@@ -66,26 +66,26 @@ test('настройки: экран показывает маску, а сох�
   assert.equal(real.youtube.clientId, 'cid2');
 });
 
-test('настройки: пустое поле ключа через studio.save удаляет ключ, остальные ключи на месте', () => {
+test('settings: an empty key field via studio.save deletes the key, other keys stay in place', () => {
   const { path, studio } = world();
   studio.save({ claudeKey: 'test-key-000000abcd', youtube: { clientId: 'cid', clientSecret: 'test-secret-9999' } });
   const shown = studio.save({ ...studio.masked(), claudeKey: '' });
-  assert.equal(shown.claudeKey, '', 'окно после «Сохранено» видит пустой ключ');
+  assert.equal(shown.claudeKey, '', 'the window sees an empty key after "Saved"');
   assert.equal(shown.warning, undefined);
   const real = loadSettings(path);
-  assert.equal(real.claudeKey, '', 'ключ удалён по-настоящему');
-  assert.equal(real.youtube.clientSecret, 'test-secret-9999', 'маска другого ключа его не затёрла');
-  assert.equal(JSON.parse(readFileSync(path, 'utf8')).claudeKey, '', 'в файле ни ключа, ни шифра');
+  assert.equal(real.claudeKey, '', 'key is really deleted');
+  assert.equal(real.youtube.clientSecret, 'test-secret-9999', 'the mask of another key did not overwrite it');
+  assert.equal(JSON.parse(readFileSync(path, 'utf8')).claudeKey, '', 'no key or cipher in the file');
   assert.equal(studio.status().claude, false);
 });
 
-test('нет шифрования, в файле старый открытый ключ: остальные настройки сохраняются, окно просит ввести ключ заново', () => {
+test('no encryption, old plain key in the file: other settings are saved, the window asks to enter the key again', () => {
   const { path, studio } = world();
   mkdirSync(join(path, '..'), { recursive: true });
   writeFileSync(path, JSON.stringify({ claudeKey: 'sk-ant-REDACTED1234', tiktok: { clientKey: 'ck' } }));
   setVault(fakeVault({ available: false }));
   try {
-    assert.equal(studio.masked().warning, OLD_KEY, 'предупреждение видно уже при открытии настроек');
+    assert.equal(studio.masked().warning, OLD_KEY, 'the warning is visible already when settings are opened');
     const shown = studio.save({ ...studio.masked(), model: 'claude-sonnet-5-5', folders: { music: 'D:/m' } });
     assert.equal(shown.warning, OLD_KEY);
     assert.match(OLD_KEY, /ключ в файле старый, введите заново/i);
@@ -93,13 +93,13 @@ test('нет шифрования, в файле старый открытый �
     assert.equal(real.model, 'claude-sonnet-5-5');
     assert.equal(real.folders.music, 'D:/m');
     assert.equal(real.tiktok.clientKey, 'ck');
-    assert.ok(!readFileSync(path, 'utf8').includes('old-plain'), 'открытого ключа в файле больше нет');
-    assert.ok(!readFileSync(path, 'utf8').includes('warning'), 'предупреждение из окна в файл не попало');
-    assert.equal(studio.masked().warning, undefined, 'после сохранения предупреждать не о чем');
+    assert.ok(!readFileSync(path, 'utf8').includes('old-plain'), 'plain key is no longer in the file');
+    assert.ok(!readFileSync(path, 'utf8').includes('warning'), 'warning from the window did not get into the file');
+    assert.equal(studio.masked().warning, undefined, 'after saving there is nothing to warn about');
   } finally { setVault(fakeVault()); }
 });
 
-test('статус: что подключено', () => {
+test('status: what is connected', () => {
   const { studio } = world();
   assert.deepEqual(studio.status(), { claude: false, youtube: false, tiktok: false, instagram: false, ffmpeg: true, species: { available: false, refs: 0 } });
   studio.save({ claudeKey: 'test-key-123456', youtube: { refreshToken: 'test-rt-123456' } });
@@ -109,7 +109,7 @@ test('статус: что подключено', () => {
   assert.equal(s.tiktok, false);
 });
 
-test('выкладка: без confirm — отказ; без входа — понятная ошибка; Instagram без ссылки — ручной пакет', async () => {
+test('publishing: without confirm — refusal; without sign-in — clear error; Instagram without link — manual package', async () => {
   const { root, studio } = world();
   const m = manifestIn(root);
   await assert.rejects(studio.publish('youtube', m.dir), /только по кнопке/);
@@ -119,7 +119,7 @@ test('выкладка: без confirm — отказ; без входа — п�
   assert.equal(ig.caption, 'рилс');
 });
 
-test('TikTok меняет refresh-токен — студия сохраняет новый и не отдаёт его наружу', async () => {
+test('TikTok changes the refresh token — the studio saves the new one and does not expose it', async () => {
   const fetchImpl = fakeFetch([
     { match: (u) => u.includes('open.tiktokapis.com/v2/oauth/token/'), reply: { json: { access_token: 'AT', refresh_token: 'test-rt-NEW-777777' } } },
     { match: (u) => u.includes('/inbox/video/init/'), reply: { json: { data: { publish_id: 'P1', upload_url: 'https://up.tt/1' }, error: { code: 'ok' } } } },
@@ -133,17 +133,17 @@ test('TikTok меняет refresh-токен — студия сохраняет
   assert.equal(loadSettings(path).tiktok.refreshToken, 'test-rt-NEW-777777');
   assert.equal(loadSettings(path).tiktok.clientSecret, 'test-cs-111111');
   const again = await studio.publish('tiktok', join(root, 'job'), { confirm: true });
-  assert.equal(again.skipped, true, 'второй раз не выкладывает');
+  assert.equal(again.skipped, true, 'does not publish a second time');
 });
 
-test('ошибка монтажа не содержит ключей', async () => {
+test('editing error contains no keys', async () => {
   const leaky = { tools: {}, async signals() { throw new Error('сбой с ключом test-key-LEAK-424242'); } };
   const { studio } = world({ media: leaky, aiFactory: () => ({ suggest: async () => ({}) }) });
   studio.save({ claudeKey: 'test-key-LEAK-424242' });
   await assert.rejects(studio.process('x.mp4'), (e) => !e.message.includes('test-key-LEAK-424242') && e.message.includes('***'));
 });
 
-test('пачка: файл короче секунды пропущен, ничего не смонтировано, «закиньте ещё»', async () => {
+test('batch: file shorter than a second is skipped, nothing edited, "add more"', async () => {
   const shortMedia = { tools: { ffmpeg: 'ffmpeg' }, async probe() { return { duration: 0.4, width: 1080, height: 1920, hasAudio: true }; }, async signals() { throw new Error('не нужен'); } };
   const { studio, root } = world({ media: shortMedia });
   const prog = [];
@@ -154,20 +154,20 @@ test('пачка: файл короче секунды пропущен, нич�
   if (r.decisions.some((d) => d.type !== 'disk')) assert.equal(prog.at(-1), 'готово');
 });
 
-test('пачка: ошибка media с ключом в тексте — ключ вымаран', async () => {
+test('batch: media error with a key in the text — key is erased', async () => {
   const leaky = { tools: { ffmpeg: 'ffmpeg' }, async probe() { throw new Error('ffprobe: test-key-leak-777777'); } };
   const { studio, root } = world({ media: leaky });
   studio.save({ claudeKey: 'test-key-leak-777777' });
   const r = await studio.runBatch([join(root, 'a.mp4')]);
   if (r.decisions.some((d) => d.type === 'disk')) return;
   assert.equal(r.errors.length, 1);
-  assert.ok(!JSON.stringify(r).includes('test-key-leak-777777'), 'ключа нет в итоге пачки');
+  assert.ok(!JSON.stringify(r).includes('test-key-leak-777777'), 'no key in the batch result');
 });
 
-test('календарь через студию: upcoming, выбор A/B, «не выкладывать», диск', () => {
+test('calendar via the studio: upcoming, A/B choice, "do not publish", disk', () => {
   const { studio } = world();
   const cal = studio.calendar();
-  assert.equal(cal, studio.calendar(), 'один календарь на приложение');
+  assert.equal(cal, studio.calendar(), 'one calendar per app');
   cal.add({ id: 'a', kind: 'top5', titles: { A: { ru: 'а' }, B: { ru: 'б' } } });
   cal.add({ id: 'b', kind: 'day' });
   let u = studio.upcoming();
@@ -185,7 +185,7 @@ test('календарь через студию: upcoming, выбор A/B, «н
   assert.ok(d === null || d > 0);
 });
 
-test('пара через студию: null до настройки; ошибки роли и папки понятные; после — статус', () => {
+test('pair via the studio: null before setup; role and folder errors are clear; status afterwards', () => {
   const { studio, root, path } = world();
   assert.equal(studio.pairing(), null);
   assert.throws(() => studio.pairSetup({ role: 'брат', sharedDir: root }), /монтажёр или я напарница/);
@@ -196,10 +196,10 @@ test('пара через студию: null до настройки; ошибк
   assert.match(code, /^\d{6}$/);
   assert.equal(loadSettings(path).pair.role, 'owner');
   studio.save({ claudeKey: 'test-key-x' });
-  assert.equal(loadSettings(path).pair.sharedDir, join(root, 'Общая'), 'сохранение настроек не стирает пару');
+  assert.equal(loadSettings(path).pair.sharedDir, join(root, 'Общая'), 'saving settings does not erase the pair');
 });
 
-test('убрать момент через студию: неизвестный ролик и уже выложенный — понятный отказ', async () => {
+test('remove a moment via the studio: unknown clip and already published — clear refusal', async () => {
   const { studio, root } = world();
   await assert.rejects(studio.removeMoment('нет', 0), /Ролик не найден/);
   const m = manifestIn(root);
@@ -209,7 +209,7 @@ test('убрать момент через студию: неизвестный 
   await assert.rejects(studio.removeMoment('p', 0), /уже выложен/);
 });
 
-test('нет шифрования: вход YouTube не говорит «подключено», ошибка понятная, токена на диске нет', async () => {
+test('no encryption: YouTube sign-in does not say "connected", error is clear, no token on disk', async () => {
   const { path, studio } = world({
     fetchImpl: fakeFetch([{ match: (u) => u.includes('oauth2.googleapis.com/token'), reply: { json: { access_token: 'AT', refresh_token: 'test-refresh-RT-424242' } } }]),
   });
@@ -227,7 +227,7 @@ test('нет шифрования: вход YouTube не говорит «под
   assert.equal(studio.status().youtube, false);
 });
 
-test('нет шифрования: studio.save с новым ключом отдаёт окну NO_CRYPTO, а модель сохраняет', () => {
+test('no encryption: studio.save with a new key gives the window NO_CRYPTO, and the model saves', () => {
   const { path, studio } = world();
   setVault(fakeVault({ available: false }));
   try {
@@ -235,6 +235,6 @@ test('нет шифрования: studio.save с новым ключом отд
     assert.equal(shown.warning, NO_CRYPTO);
     assert.equal(loadSettings(path).model, 'claude-sonnet-5-5');
     assert.ok(!readFileSync(path, 'utf8').includes('new-5555'));
-    assert.equal(studio.masked().warning, undefined, 'после сохранения «Ключ в файле старый» не всплывает');
+    assert.equal(studio.masked().warning, undefined, 'after saving, "key in file is old" does not surface');
   } finally { setVault(fakeVault()); }
 });

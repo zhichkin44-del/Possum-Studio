@@ -1,6 +1,6 @@
-// «Свой ли это зверёк» без ключа и сети: локальная модель кадров (CLIP ViT-B/32, ONNX) и эталон —
-// 3–5 фото или видео, которые владелец дал один раз. Дальше модель учится на подтверждённых видео.
-// Пороги считаются от эталона: насколько его кадры похожи друг на друга (проверено на 10 видео Вовы, test/species.test.js).
+// "Is this your pet" without a key and without a network: a local frame model (CLIP ViT-B/32, ONNX) and a reference —
+// 3–5 photos or videos that the owner gave once. Then the model learns from confirmed videos.
+// Thresholds are computed from the reference: how similar its frames are to each other (checked on 10 videos of Vova's, test/species.test.js).
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
@@ -14,14 +14,14 @@ const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.heic']);
 const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
 const r4 = (v) => v.map((x) => Math.round(x * 1e4) / 1e4);
 
-/** Балл похожести на эталон: у каждого кадра — ближайший эталон, балл — среднее трёх лучших кадров. */
+/** Similarity score to the reference: each frame gets its nearest reference, the score is the average of the three best frames. */
 export function scoreAgainst(frames, refs) {
   if (!frames?.length || !refs?.length) return null;
   const best = frames.map((f) => Math.max(...refs.map((r) => dot(f, r)))).sort((a, b) => b - a).slice(0, 3);
   return best.reduce((s, x) => s + x, 0) / best.length;
 }
 
-/** Доля кадров, где ближайшая подпись — «зверь» (первые labels.animal подписей). */
+/** Share of frames where the nearest caption is "animal" (the first labels.animal captions). */
 export function animalShare(frames, labels) {
   if (!frames?.length) return 0;
   let n = 0;
@@ -34,8 +34,8 @@ export function animalShare(frames, labels) {
 }
 
 /**
- * Пороги от эталона владельца: у каждого кадра — похожесть на ближайший другой кадр эталона, берём худшую
- * (в пределах 0,90–0,96). «Мой» — на 0,03 ниже, «не он» — на 0,12 ниже. В эталоне меньше двух кадров — запасные пороги.
+ * Thresholds from the owner's reference: each frame's similarity to the nearest other frame of the reference; we take the worst
+ * (within 0.90–0.96). "Mine" — 0.03 lower, "not him" — 0.12 lower. If the reference has fewer than two frames — fallback thresholds.
  */
 export function thresholdsFor(refVectors) {
   if (!refVectors || refVectors.length < 2) return THRESHOLDS;
@@ -44,7 +44,7 @@ export function thresholdsFor(refVectors) {
   return { mine: base - 0.03, other: base - 0.12, animal: THRESHOLDS.animal };
 }
 
-/** mine — ваш зверёк; other — другой зверь; empty — зверька в кадре почти нет; unsure — спросить человека. */
+/** mine — your pet; other — another animal; empty — there is almost no pet in the frame; unsure — ask the person. */
 export function verdictOf({ score, animal }, T = THRESHOLDS) {
   if (score == null) return 'unsure';
   if (animal != null && animal < T.animal) return score >= T.mine ? 'unsure' : 'empty';
@@ -75,8 +75,8 @@ const STD = [0.26862954, 0.26130258, 0.27577711];
 const SIDE = 224;
 
 /**
- * Модель кадров: файл → k нормированных векторов (512). ONNX грузится лениво при первом кадре.
- * Модели нет на диске — available false, и приложение работает по-старому (спрашивает человека).
+ * Frame model: file → k normalized vectors (512). ONNX is loaded lazily on the first frame.
+ * No model on disk — available false, and the app works the old way (asks the person).
  */
 export function createClipEmbedder({ modelDir, ffmpeg, ffprobe, ortModule = 'onnxruntime-node' } = {}) {
   const modelFile = modelDir ? join(modelDir, 'vision_model_quantized.onnx') : null;
@@ -101,7 +101,7 @@ export function createClipEmbedder({ modelDir, ffmpeg, ffprobe, ortModule = 'onn
     const b = await run(ffmpeg, args);
     return b.length === SIDE * SIDE * 3 ? b : null;
   }
-  /** Векторы пачки кадров RGB SIDE×SIDE (батчами, чтобы не держать всё в памяти модели). */
+  /** Vectors of a batch of RGB SIDE×SIDE frames (in batches, so that not everything is held in model memory). */
   async function vectors(shots) {
     const { s, Tensor } = await load();
     const P = SIDE * SIDE;
@@ -127,9 +127,9 @@ export function createClipEmbedder({ modelDir, ffmpeg, ffprobe, ortModule = 'onn
   return {
     available,
     /**
-     * Кадр раз в step секунд целиком, без обрезки краёв: короткая сторона — SIDE·grid, квадраты SIDE
-     * с перекрытием покрывают весь кадр. Для фильтра приватности: человек может быть у края.
-     * Возвращает [{ t, v }] — по вектору на каждый квадрат.
+     * A frame every step seconds in full, without cropping the edges: the short side is SIDE·grid, squares of SIDE
+     * with overlap cover the whole frame. For the privacy filter: a person may be at the edge.
+     * Returns [{ t, v }] — one vector per square.
      */
     async embedAt(file, { step = 1, grid = 1 } = {}) {
       if (!available) throw new Error('модели нет');
@@ -178,8 +178,8 @@ export function createClipEmbedder({ modelDir, ffmpeg, ffprobe, ortModule = 'onn
 const safeName = (id) => `${String(id).replace(/[\\/:*?"<>|\s]+/g, '_').slice(-60)}-${createHash('sha1').update(String(id)).digest('hex').slice(0, 10)}.json`;
 
 /**
- * Узнаёт вашего зверька: эталон хранится в dataRoot/.species, кадры видео — в кэше,
- * поэтому вердикт пересчитывается по новому эталону без повторного прогона модели.
+ * Recognizes your pet: the reference is stored in dataRoot/.species, the video frames — in the cache,
+ * so the verdict is recalculated against the new reference without re-running the model.
  */
 export function createSpecies({ dataRoot, embedder, labels = null, thresholds = null } = {}) {
   const dir = join(dataRoot, '.species');
@@ -212,9 +212,9 @@ export function createSpecies({ dataRoot, embedder, labels = null, thresholds = 
     refs: () => db.refs.map((r) => ({ ...r })),
 
     /**
-     * Эталон от владельца: из видео смотрим 12 кадров и берём 3, где зверёк виден лучше всего; фото — 1 кадр.
-     * Снимки без зверька — в noAnimal, нечитаемые — в failed. Если вместе с прежним эталоном выходит меньше 3 снимков
-     * со зверьком — ничего не сохраняем (needMore), чтобы эталон не собрался из пустой комнаты.
+     * Reference from the owner: from a video we look at 12 frames and take 3 where the pet is best visible; a photo — 1 frame.
+     * Shots without the pet — into noAnimal, unreadable ones — into failed. If together with the previous reference there are fewer than 3 shots
+     * with the pet — we save nothing (needMore), so that the reference is not built from an empty room.
      */
     async addReference(files) {
       const failed = []; const noAnimal = []; const picked = [];
@@ -242,7 +242,7 @@ export function createSpecies({ dataRoot, embedder, labels = null, thresholds = 
       return { added: picked.length, found: picked.length, failed, noAnimal };
     },
 
-    /** Вердикт по видео. Без модели, без эталона или если кадры не читаются — «не уверен». */
+    /** Verdict for a video. Without the model, without a reference, or if the frames cannot be read — "not sure". */
     async judge(path, id = basename(path)) {
       if (!available) return { verdict: 'unsure', score: null, animal: null };
       let frames;
@@ -254,7 +254,7 @@ export function createSpecies({ dataRoot, embedder, labels = null, thresholds = 
       return { verdict: verdictOf({ score, animal }, T), score: score == null ? null : Math.round(score * 1e4) / 1e4, animal };
     },
 
-    /** Владелец подтвердил «мой» — самый похожий кадр видео идёт в эталон (не больше 20; свои снимки владельца не вытесняются). */
+    /** The owner confirmed "mine" — the most similar frame of the video goes into the reference (no more than 20; the owner's own shots are not pushed out). */
     learn(id) {
       const frames = cached(id);
       if (!frames?.length || db.refs.some((r) => r.id === id)) return false;

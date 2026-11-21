@@ -1,5 +1,5 @@
-// Сообщения бота. Источник — docs/texts/partner-messages.md и раскладки docs/layouts. Формат Telegram: HTML.
-// Правила: ни слова «нельзя», ни слов про ветеринара и обогреватели; не давим; не обещаем того, чего бот не может.
+// Bot messages. Written from the screen layouts of the bot. Telegram format: HTML.
+// Rules: no word "forbidden", no words about the vet or heaters; no pressure; no promises the bot cannot keep.
 export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const closedBot = 'Это закрытый бот студии. Если тебе нужен доступ, спроси у Саши.';
@@ -75,7 +75,7 @@ export const lessOften = 'Хорошо, буду присылать реже.';
 export const notRushing = 'Хорошо, не тороплю.';
 export const youreWelcome = 'Пожалуйста!';
 
-// ---------- Саша: своё видео → монтаж → выкладка по кнопке ----------
+// ---------- the owner: his own video → editing → publishing by button ----------
 export const ownerHelpStudio = 'Пришли видео поссума — смонтирую три версии (YouTube, TikTok, Reels), подскажу, что выкладывать, и выложу по твоей кнопке.\nКоманды: /status — как дела у напарницы, /код — код для неё.\nКлюч ИИ и вход в YouTube/TikTok — в приложении «Поссум», раздел «Настройки».';
 export const ownerNoStudio = 'Монтаж в боте не подключён: запусти бота на компьютере, где стоит приложение «Поссум» и FFmpeg.';
 export const ownerTooBig = 'Telegram не отдаёт боту файлы больше 20 МБ. Пришли короче (до 30 секунд) или положи файл в папку «Входящие» приложения — там ограничения нет.';

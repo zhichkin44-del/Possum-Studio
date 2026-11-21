@@ -1,6 +1,6 @@
-// Пара «Монтажёр ↔ напарница» через общую папку (OneDrive / Google Диск / сетевая папка — что синхронизируется у обоих).
-// Код из 6 цифр живёт 24 ч, 5 попыток; в общей папке лежит только sha256(соль+код). Полных путей и ключей не храним.
-// Ящики: sharedDir/owner/ пишет только монтажёр (готовые ролики), sharedDir/partner/ — только напарница (сырые видео).
+// The pair "The editor ↔ partner" through a shared folder (OneDrive / Google Drive / a network folder — whatever syncs for both).
+// The 6-digit code lives 24 h, 5 attempts; only sha256(salt+code) is in the shared folder. We do not store full paths or keys.
+// Mailboxes: sharedDir/owner/ is written only by the editor (finished videos), sharedDir/partner/ only by the partner (raw videos).
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync, copyFileSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -11,7 +11,7 @@ const sha = (s) => createHash('sha256').update(s).digest('hex');
 const readJson = (f, d) => { try { return JSON.parse(readFileSync(f, 'utf8')); } catch { return d; } };
 const writeJson = (f, v) => { writeFileSync(`${f}.tmp`, JSON.stringify(v, null, 2), 'utf8'); renameSync(`${f}.tmp`, f); };
 const other = (role) => (role === 'owner' ? 'partner' : 'owner');
-/** Имя файла без пути и без символов, опасных для Windows. */
+/** File name without a path and without characters dangerous for Windows. */
 export const safeName = (n) => basename(String(n)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 120) || 'file';
 
 export function fileSha(file) {
@@ -37,7 +37,7 @@ export function createPairing({ sharedDir, role, stateDir, now = () => Date.now(
       return { paired: Boolean(s.paired && p?.joinedAt && p.pairId === s.pairId), role, waiting: Boolean(p && !p.joinedAt && p.expiresAt > now()) };
     },
 
-    /** монтажёр: новый код. Старый код и пара сбрасываются. */
+    /** The editor: a new code. The old code and the pair are reset. */
     create() {
       if (role !== 'owner') throw new Error('Код создаёт монтажёр');
       mkdirSync(sharedDir, { recursive: true });
@@ -49,7 +49,7 @@ export function createPairing({ sharedDir, role, stateDir, now = () => Date.now(
       return { code, expiresAt: now() + H24 };
     },
 
-    /** Напарница: ввод кода. Ошибка — понятным текстом, без подробностей о коде. */
+    /** Partner: code entry. An error — in clear text, without details about the code. */
     join(code) {
       if (role !== 'partner') throw new Error('Код вводит напарница');
       const p = readJson(pairFile, null);
@@ -66,7 +66,7 @@ export function createPairing({ sharedDir, role, stateDir, now = () => Date.now(
       return { paired: true };
     },
 
-    /** Положить файл в свой ящик (name — под каким именем его увидит другая сторона): копия .part → переименование → meta (имя, размер, sha256, время). */
+    /** Put a file into your own mailbox (name — the name under which the other side will see it): copy to .part → rename → meta (name, size, sha256, time). */
     async send(file, { name: asName = null } = {}) {
       if (!this.status().paired) throw new Error('Сначала соедините приложения кодом');
       const dir = box(role); mkdirSync(dir, { recursive: true });
@@ -82,7 +82,7 @@ export function createPairing({ sharedDir, role, stateDir, now = () => Date.now(
       return { name, stored, sha256: hash };
     },
 
-    /** Забрать из ящика другой стороны всё новое и целое в destDir. Недокачанное (размер/sha не сошлись) ждёт следующего раза. */
+    /** Take everything new and intact from the other side's mailbox into destDir. Incomplete files (size/sha mismatch) wait for the next time. */
     async receive(destDir) {
       if (!this.status().paired) return { got: [], waiting: 0 };
       const dir = box(other(role));

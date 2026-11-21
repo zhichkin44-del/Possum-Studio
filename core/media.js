@@ -1,4 +1,4 @@
-// ffmpeg/ffprobe: поиск (переменная → ffmpeg-static в приложении → PATH), запуск, сигналы ролика (шаг 0,25 с, у длинных — больше), прокси 720p.
+// ffmpeg/ffprobe: lookup (variable → ffmpeg-static in the app → PATH), running, video signals (step 0.25 s, larger for long ones), 720p proxy.
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { frameStats, FW as W, FH as H } from './frames.js';
@@ -6,7 +6,7 @@ import { frameStats, FW as W, FH as H } from './frames.js';
 const require = createRequire(import.meta.url);
 export const STEP = 0.25;
 export const MAX_SAMPLES = 2400;
-/** Шаг сигналов: 0,25 с, но не больше 2 400 замеров на клип. */
+/** Signal step: 0.25 s, but no more than 2,400 measurements per clip. */
 export const stepFor = (duration) => Math.max(STEP, Math.ceil(((duration || 0) / MAX_SAMPLES) * 4) / 4);
 const ratio = (s) => { const [a, b] = String(s ?? '0/1').split('/').map(Number); return b ? a / b : a || 0; };
 const HDR_TRC = new Set(['smpte2084', 'arib-std-b67']);
@@ -76,7 +76,7 @@ export function createMedia(env = process.env) {
     };
   }
 
-  /** Прокси для разбора: 720p по короткой стороне, 30 к/с постоянная, H.264 BT.709 (HDR → тонмаппинг). */
+  /** Proxy for analysis: 720p on the short side, constant 30 fps, H.264 BT.709 (HDR → tone mapping). */
   async function proxy(src, out, info) {
     const i = info ?? await probe(src);
     const size = "scale='if(gt(iw,ih),-2,720)':'if(gt(iw,ih),720,-2)'";
@@ -88,7 +88,7 @@ export function createMedia(env = process.env) {
     return out;
   }
 
-  /** По шагу: движение (разница соседних кадров), яркость, насыщенность, резкость, dHash, громкость (дБ). */
+  /** Per step: motion (difference of adjacent frames), brightness, saturation, sharpness, dHash, loudness (dB). */
   async function signals(path, { info: given } = {}) {
     const info = given ?? await probe(path);
     const step = stepFor(info.duration);

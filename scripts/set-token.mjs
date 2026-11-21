@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Токен бота вводит Саша сам: скрипт спрашивает его скрытым вводом (символы не видны), проверяет вид и пишет в data/.token.
-// Токен нигде не печатается и не попадает в историю команд или чат. Агентам файл data/.token читать не нужно.
-//   npm run set-token            — ввод в терминале
-//   npm run set-token -- --verify — после записи спросить у Telegram, как зовут бота (нужен интернет)
+// The bot token is entered by the owner: the script asks for it with hidden input (characters not shown), checks its shape and writes it to data/.token.
+// The token is never printed and never gets into the command history or chat. Agents do not need to read the data/.token file.
+//   npm run set-token            — enter in the terminal
+//   npm run set-token -- --verify — after writing, ask Telegram what the bot is called (needs internet)
 import { mkdirSync, writeFileSync, readFileSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,7 @@ if (!looksLikeToken(token)) {
 }
 mkdirSync(dataDir, { recursive: true });
 writeFileSync(file, `${token}\n`, { encoding: 'utf8', mode: 0o600 });
-try { chmodSync(file, 0o600); } catch { /* Windows: права наследуются от папки */ }
+try { chmodSync(file, 0o600); } catch { /* Windows: rights are inherited from the folder */ }
 console.log(`Токен сохранён: ${file}. Сам токен не показан и никуда не отправлен.`);
 
 if (process.argv.includes('--verify')) {

@@ -1,6 +1,6 @@
-// Монтаж настоящей съёмки с телефона: 9:16, до 18 с, лучшее по движению место, заставка (RU + EN), звук −14 LUFS, обложка, лист проверки.
-// Общее с Видеостудией (<project-dir>): тот же ffmpeg, формат 1080×1920 и громкость −14 LUFS. Кода Видеостудии здесь нет.
-// produce.py и proof_sheet.py привязаны к «эпизоду» (озвучка, кадры от ИИ, оверлеи Hyperframes) и к съёмке с телефона не подходят.
+// Editing of real phone footage: 9:16, up to 18 s, the most dynamic spot by motion, title card (RU + EN), audio −14 LUFS, cover, proof sheet.
+// Shared with the Video Studio (<project-dir>): the same ffmpeg, 1080×1920 format and −14 LUFS loudness. The Video Studio code is not here.
+// produce.py and proof_sheet.py are tied to an "episode" (voice-over, AI frames, Hyperframes overlays) and do not fit phone footage.
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,8 +8,8 @@ import { findFont as findBundledFont } from '../core/assets.js';
 import { ENCODE, gradeChain } from '../core/render.js';
 
 /**
- * Картинка одного куска бота: вертикальное — на весь кадр; горизонтальное — квадрат по центру крупно на размытом фоне
- * (зверёк не мелкий). Обработка как в приложении: шумодав на тёмном, живость, контраст, резкость.
+ * Picture of one bot clip: vertical goes full-frame; horizontal becomes a large centered square on a blurred background
+ * (the pet is not small). Processing as in the app: denoise on dark areas, vividness, contrast, sharpness.
  */
 export function segVideoFilter(s, i) {
   const grade = gradeChain({ luma: s.luma });
@@ -18,7 +18,7 @@ export function segVideoFilter(s, i) {
     : `[${i}:v]fps=30,setsar=1,split=2[bg${i}][fgv${i}];[bg${i}]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:2[bgb${i}];[fgv${i}]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080[fgs${i}];[bgb${i}][fgs${i}]overlay=(W-w)/2:(H-h)/2,${grade},setsar=1,format=yuv420p[v${i}]`;
 }
 
-const TARGET_SECONDS = 18; // в пределах 8–20 с паспорта
+const TARGET_SECONDS = 18; // within the 8–20 s from the passport
 const FPS_SCAN = 4;
 const SCAN_W = 64, SCAN_H = 96;
 
@@ -31,7 +31,7 @@ function findFfprobe(ffmpeg, env = process.env) {
   const sibling = ffmpeg && /ffmpeg(\.exe)?$/i.test(ffmpeg) ? ffmpeg.replace(/ffmpeg(\.exe)?$/i, (m) => m.replace('ffmpeg', 'ffprobe')) : null;
   return (env.FFPROBE && tryBin(env.FFPROBE)) || (sibling && tryBin(sibling)) || tryBin('ffprobe');
 }
-/** Шрифт подписей бота — тот же, что у приложения: вшитый Montserrat Black (core/assets.js). */
+/** Caption font of the bot — the same as in the app: the embedded Montserrat Black (core/assets.js). */
 export function findFont(env = process.env) { return findBundledFont(env); }
 
 function run(bin, args, { cwd, binary = false, timeoutMs = 600_000 } = {}) {
@@ -50,7 +50,7 @@ function run(bin, args, { cwd, binary = false, timeoutMs = 600_000 } = {}) {
   });
 }
 
-/** Заставка: строка RU (крупно) и EN (мельче) — ролик один на два канала. */
+/** Title card: an RU line (large) and an EN line (smaller) — one video for two channels. */
 export function normalizeHook(title) {
   if (title && typeof title === 'object') return { ru: String(title.ru ?? '').trim(), en: String(title.en ?? '').trim() };
   return { ru: String(title ?? '').trim(), en: '' };
@@ -85,7 +85,7 @@ export function createMontage({ env = process.env } = {}) {
     return { duration, width: w, height: h, hasAudio, luma };
   }
 
-  /** Средние изменения между соседними кадрами 64×96 за окно ss..ss+t. */
+  /** Average changes between adjacent 64×96 frames over the window ss..ss+t. */
   async function frameDiffs(path, ss, t) {
     const r = await run(ffmpeg, ['-nostdin', '-v', 'error', '-ss', String(ss), '-t', String(t), '-i', path, '-an', '-vf', `fps=${FPS_SCAN},scale=${SCAN_W}:${SCAN_H}:flags=area,format=gray`, '-f', 'rawvideo', '-pix_fmt', 'gray', '-'], { binary: true, timeoutMs: 180_000 });
     const fsz = SCAN_W * SCAN_H;
@@ -99,7 +99,7 @@ export function createMontage({ env = process.env } = {}) {
     return diffs;
   }
 
-  /** Где в клипе самое живое место: окно win секунд с наибольшим движением между кадрами. */
+  /** Where in the clip the most dynamic spot is: a win-second window with the largest motion between frames. */
   async function motionStart(path, duration, win) {
     if (duration <= win + 0.5) return 0;
     const diffs = await frameDiffs(path, 0, 240);
@@ -112,13 +112,13 @@ export function createMontage({ env = process.env } = {}) {
     return Math.max(0, Math.min(duration - win, bestI / FPS_SCAN - 0.3));
   }
 
-  /** Среднее изменение кадра за окно (0 — стоп-кадр): проверка «первые 1,5 с не пустые». */
+  /** Average frame change over the window (0 = freeze frame): the check "the first 1.5 s are not empty". */
   async function motionLevel(path, ss, t) {
     const d = (await frameDiffs(path, ss, t)).slice(1);
     return d.length ? d.reduce((a, b) => a + b, 0) / d.length : 0;
   }
 
-  /** Интегральная громкость (LUFS) и пик — по ebur128. null, если звука нет. */
+  /** Integrated loudness (LUFS) and peak, from ebur128. null if there is no audio. */
   async function loudness(path) {
     const r = await run(ffmpeg, ['-nostdin', '-hide_banner', '-nostats', '-i', path, '-vn', '-af', 'ebur128=peak=true', '-f', 'null', '-'], quick);
     const tail = r.stderr.slice(Math.max(0, r.stderr.lastIndexOf('Summary:')));
@@ -145,7 +145,7 @@ export function createMontage({ env = process.env } = {}) {
     const total = infos.reduce((a, c) => a + c.duration, 0);
     if (total < 1) throw new Error('Съёмка слишком короткая для монтажа');
 
-    // сколько берём из каждого клипа
+    // how much we take from each clip
     const segs = [];
     for (const c of infos) {
       const len = total <= TARGET_SECONDS ? c.duration : Math.max(2, Math.min(c.duration, (TARGET_SECONDS * c.duration) / total));
@@ -161,7 +161,7 @@ export function createMontage({ env = process.env } = {}) {
     if (useTitle) { writeFileSync(join(work, 'title_ru.txt'), ruText, 'utf8'); if (hook.en) writeFileSync(join(work, 'title_en.txt'), hook.en.toUpperCase(), 'utf8'); }
     const sizeRu = Math.max(72, Math.min(108, Math.floor(940 / Math.max(5, ruText.length * 0.74))));
     const sizeEn = Math.round(sizeRu * 0.56);
-    const titleY = 0.19; // выше героя, но ниже верхней полосы интерфейса (≈13%); обложка использует то же место
+    const titleY = 0.19; // above the pet, but below the top interface bar (≈13%); the cover uses the same spot
     const drawTitle = (extra = '') => {
       const parts = [`drawtext=fontfile=font.ttf:textfile=title_ru.txt:fontsize=${sizeRu}:fontcolor=white:borderw=9:bordercolor=black@0.9:shadowx=3:shadowy=4:shadowcolor=black@0.6:x=(w-text_w)/2:y=h*${titleY}${extra}`];
       if (hook.en) parts.push(`drawtext=fontfile=font.ttf:textfile=title_en.txt:fontsize=${sizeEn}:fontcolor=0xFFD84D:borderw=7:bordercolor=black@0.9:shadowx=2:shadowy=3:shadowcolor=black@0.6:x=(w-text_w)/2:y=h*${titleY}+${Math.round(sizeRu * 1.25)}${extra}`);
@@ -179,10 +179,10 @@ export function createMontage({ env = process.env } = {}) {
       fg.push(`[${asrc}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB[a${i}]`);
     });
     fg.push(`${segs.map((_, i) => `[v${i}][a${i}]`).join('')}concat=n=${segs.length}:v=1:a=1[vc][ac]`);
-    // появляется за 0,3 с, держится до 3 с, гаснет за 0,4 с
+    // fades in over 0.3 s, holds until 3 s, fades out over 0.4 s
     const fade = ":enable='between(t,0.1,3.4)':alpha='if(lt(t,0.4),(t-0.1)/0.3,if(gt(t,3.0),(3.4-t)/0.4,1))'";
     if (useTitle) {
-      // мягкое затемнение под заставкой: один кадр-«шторка», размноженный на время показа (дёшево), плавно появляется и гаснет
+      // soft darkening under the title card: one "curtain" frame repeated for the display time (cheap), fading in and out smoothly
       const cy = (titleY + (hook.en ? 0.07 : 0.04)).toFixed(3);
       fg.push(`color=c=black:s=1080x1920:r=30:d=0.04,format=gbrap,geq=r=0:g=0:b=0:a='255*min(0.78,0.62*exp(-pow((Y-H*${cy})/(H*0.2),2))+0.5*pow(hypot((X-W/2)/(W/2),(Y-H/2)/(H/2))/1.42,2.2))',loop=loop=115:size=1:start=0,fade=t=in:st=0.1:d=0.3:alpha=1,fade=t=out:st=3.0:d=0.4:alpha=1[scrim]`);
       fg.push('[vc][scrim]overlay=eof_action=pass:format=auto[vs]');
@@ -197,9 +197,9 @@ export function createMontage({ env = process.env } = {}) {
     const video = join(outDir, 'final_1080p_vertical.mp4');
     copyFileSync(join(work, 'final_1080p_vertical.mp4'), video);
 
-    // обложка: кадр из сильного места + надпись на том же месте, что и в ролике
+    // cover: a frame from a strong spot + the caption in the same place as in the video
     const cover = join(outDir, 'cover.jpg');
-    // мягкое затемнение под надписью (гауссиана по вертикали), без жёсткой плашки
+    // soft darkening under the caption (vertical Gaussian), without a hard banner
     const g = `exp(-pow((Y-H*${titleY + (hook.en ? 0.07 : 0.04)})/(H*0.18),2))`;
     const shade = `geq=lum='lum(X,Y)*(1-0.55*${g})':cb='128+(cb(X,Y)-128)*(1-0.5*${g})':cr='128+(cr(X,Y)-128)*(1-0.5*${g})'`;
     const cargs = ['-nostdin', '-y', '-v', 'error', '-ss', (outLen * 0.35).toFixed(2), '-i', video, '-frames:v', '1', '-vf'];
@@ -207,7 +207,7 @@ export function createMontage({ env = process.env } = {}) {
     const cr = await run(ffmpeg, cargs, { cwd: work, ...quick });
     if (cr.code === 0) copyFileSync(join(work, 'cover.jpg'), cover);
 
-    // лист проверки: 8 кадров по длине ролика (для Саши и контроля, напарнице не показываем)
+    // proof sheet: 8 frames across the video length (for the owner and QA; not shown to the partner)
     const proof = join(outDir, 'proof.jpg');
     const pr = await run(ffmpeg, ['-nostdin', '-y', '-v', 'error', '-i', video, '-vf', `fps=8/${outLen.toFixed(2)},scale=270:-2,tile=4x2`, '-frames:v', '1', 'proof.jpg'], { cwd: work, ...quick });
     if (pr.code === 0) copyFileSync(join(work, 'proof.jpg'), proof);

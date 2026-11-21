@@ -1,6 +1,6 @@
-// «Поссум Студия»: папка Документы\Поссум\Входящие → разбор пачкой → ролики в календаре → выкладка только по кнопке.
-// Пара: напарница шлёт видео монтажёру через общую папку, он монтирует и шлёт ей готовое.
-// Ключи вводит только владелец на экране «Настройки»; в окно они приходят замаскированными, в лог не пишутся.
+// "Possum Studio": the Documents\Possum\Inbox folder → batch analysis → videos in the calendar → publishing only by button.
+// Pair: the partner sends videos to the editor through a shared folder, he edits and sends her the finished ones.
+// Only the owner enters keys on the "Settings" screen; they reach the window masked and are not written to the log.
 import { app, BrowserWindow, ipcMain, shell, dialog, clipboard, safeStorage } from 'electron';
 import { join, dirname, basename, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +25,7 @@ function dataRoot() {
   return process.env.POSSUM_HOME ?? join(app.getPath('documents'), 'Поссум');
 }
 
-/** Модель «свой ли зверёк»: в установщике — resources/models/clip, при разработке — models/clip (scripts/fetch-model.mjs). */
+/** The "is it our pet" model: in the installer — resources/models/clip, in development — models/clip (scripts/fetch-model.mjs). */
 function clipModelDir() {
   if (process.env.POSSUM_CLIP_MODEL) return process.env.POSSUM_CLIP_MODEL;
   return app.isPackaged ? join(process.resourcesPath, 'models', 'clip') : join(here, '..', 'models', 'clip');
@@ -69,12 +69,12 @@ function createWindow() {
     webPreferences: { preload: join(here, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.loadFile(join(here, 'ui', 'index.html'));
-  // ссылки — только во внешний браузер, окно никуда не уходит
+  // links — only to the external browser, the window never navigates away
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-/** Что уже выложено по каждой площадке. */
+/** What has already been published on each platform. */
 function doneFor(manifest) {
   return Object.fromEntries(PLATFORMS.map((p) => {
     const file = p === 'instagram' ? manifest.outputs?.reels : manifest.outputs?.[p];
@@ -111,7 +111,7 @@ function wire({ root, inDir }) {
     const target = what === 'in' ? inDir : what === 'out' ? need().outRoot
       : what === 'from' ? join(root, 'Готово', 'От монтажёра') : what === 'shared' ? shared : what;
     if (typeof target !== 'string' || !target) return false;
-    // открываем только папки внутри Документы\Поссум и общую папку пары
+    // we open only folders inside Documents\Possum and the pair's shared folder
     const abs = resolve(target);
     const inside = (base) => base && (abs === resolve(base) || abs.startsWith(resolve(base) + sep));
     if (!inside(root) && !inside(shared)) return false;
@@ -119,7 +119,7 @@ function wire({ root, inDir }) {
     shell.openPath(abs);
     return true;
   });
-  // Копирование во «Входящие» (кнопка и перетаскивание): асинхронно, с прогрессом; второе копирование ждёт первое
+  // Copying into "Inbox" (button and drag-and-drop): asynchronous, with progress; a second copy waits for the first
   let copying = Promise.resolve();
   const intake = (paths) => (copying = copying.catch(() => {}).then(async () => {
     const files = collectVideos(paths);
@@ -138,12 +138,12 @@ function wire({ root, inDir }) {
   });
   ipcMain.handle('inbox:add', async (_e, paths) => (await intake(Array.isArray(paths) ? paths.filter((p) => typeof p === 'string' && p) : [])).copied);
 
-  // «Что снять сегодня»: сценарий дня и что из него уже снято
+  // "What to shoot today": the day's scenario and what from it is already shot
   ipcMain.handle('today', (_e, opts) => need().today({ refresh: Boolean(opts?.refresh) }));
   ipcMain.handle('ideas', () => need().ideas());
   ipcMain.handle('mentor', (_e, opts) => need().mentor(String(opts?.q ?? ''), Array.isArray(opts?.history) ? opts.history.slice(-4) : []));
 
-  // Календарь и решения
+  // Calendar and decisions
   ipcMain.handle('calendar', () => {
     const u = need().upcoming();
     const withCover = (s) => ({ ...s, cover: s.dir && existsSync(join(s.dir, 'cover.jpg')) ? join(s.dir, 'cover.jpg') : null });
@@ -161,7 +161,7 @@ function wire({ root, inDir }) {
     return need().pickTitle(id, ab);
   });
   ipcMain.handle('calendar:skip', (_e, id) => need().skip(id));
-  // Отметка «где мой зверёк» по листам кадров → сборка роликов из отмеченного
+  // The "where my pet is" mark from frame sheets → assembly of videos from the marked ones
   ipcMain.handle('pets:confirm', async (_e, marks) => {
     const r = await need().confirmPets(marks, (x) => send('progress', x));
     const l = inbox?.setLast(r) ?? null;
@@ -169,7 +169,7 @@ function wire({ root, inDir }) {
     hub?.afterBatch(r).catch(() => {});
     return l;
   });
-  // Эталон «вот мой зверёк»: 3–5 фото или видео один раз → пересчёт неуверенных → сборка
+  // The reference "this is my pet": 3–5 photos or videos once → recalculation of unsure ones → assembly
   ipcMain.handle('species:reference', async () => {
     const d = await dialog.showOpenDialog(win, { title: 'Фото или видео вашего зверька (3–5)', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Фото и видео', extensions: ['jpg', 'jpeg', 'png', 'mp4', 'mov', 'm4v'] }] });
     if (d.canceled || !d.filePaths.length) return null;
@@ -180,11 +180,11 @@ function wire({ root, inDir }) {
     hub?.afterBatch(r).catch(() => {});
     return l;
   });
-  // Вид зверька в текстах — только после «Да» владельца; null — «Другой зверь»
+  // The pet's species in the texts — only after the owner's "Yes"; null — "Another animal"
   ipcMain.handle('species:set', (_e, name) => need().setSpecies(name ?? null));
   ipcMain.handle('moment:remove', (_e, { id, idx }) => need().removeMoment(id, idx));
 
-  // Пара с напарницей
+  // Pair with the partner
   ipcMain.handle('pair:status', () => pairInfo());
   ipcMain.handle('pair:setup', async (_e, role) => {
     const r = await dialog.showOpenDialog(win, { title: 'Общая папка (Яндекс Диск, Google Диск, OneDrive)', properties: ['openDirectory', 'createDirectory'] });
@@ -202,7 +202,7 @@ function wire({ root, inDir }) {
     const p = need().pairing();
     if (!p) throw new Error('Сначала выберите общую папку');
     p.join(String(code ?? ''));
-    studio.save({ wizardDone: true }); // соединились — мастер больше не нужен
+    studio.save({ wizardDone: true }); // connected — the wizard is no longer needed
     return pairInfo();
   });
   ipcMain.handle('wizard:solo', () => { need().save({ wizardDone: true }); return true; });
@@ -215,7 +215,7 @@ function wire({ root, inDir }) {
     return need().connect(kind, (url) => shell.openExternal(url));
   });
 
-  // Выкладка: только после «Да» в системном окне. confirm:true ставится здесь, не в окне.
+  // Publishing: only after "Yes" in the system dialog. confirm:true is set here, not in the window.
   ipcMain.handle('publish', async (_e, { id, platforms }) => {
     const slot = slotOf(id);
     if (!slot.dir || !studio.hasManifest(slot.dir)) throw new Error('Ролик ещё не смонтирован');
@@ -231,23 +231,23 @@ function wire({ root, inDir }) {
     for (const p of list) {
       try {
         const res = await studio.publish(p, slot.dir, { confirm: true });
-        if (res?.manual && res.caption) clipboard.writeText(res.caption); // подпись Reels — сразу в буфер
+        if (res?.manual && res.caption) clipboard.writeText(res.caption); // the Reels caption — straight to the clipboard
         out.push({ platform: p, ...res });
       }
       catch (e) { out.push({ platform: p, error: String(e?.message ?? e).slice(0, 300) }); }
     }
-    // В календаре ролик выложен, если хоть одна площадка приняла его (ручной пакет не считается)
+    // In the calendar a video is published if at least one platform accepted it (a manual package does not count)
     if (out.some((r) => !r.error && !r.manual && (r.id || r.skipped))) studio.calendar().markPublished(id);
     return out;
   });
 }
 
-// второе окно не запускаем: две копии делили бы одну очередь
+// we do not launch a second window: two copies would share one queue
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
 app.whenReady().then(() => {
-  // ключи в settings.json шифрует Windows (DPAPI) через safeStorage; без шифрования они не сохраняются
+  // Windows (DPAPI) encrypts the keys in settings.json via safeStorage; without encryption they are not saved
   setVault(safeStorage);
   const paths = boot();
   wire(paths);
