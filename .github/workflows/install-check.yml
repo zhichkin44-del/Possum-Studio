@@ -18,11 +18,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install FFmpeg 7 (Linux, as in README)
+      - name: Install FFmpeg with drawtext (Linux, as in README)
         if: runner.os == 'Linux'
-        uses: FedericoCarboni/setup-ffmpeg@v3
-        with:
-          ffmpeg-version: release
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+          /usr/bin/ffmpeg -hide_banner -filters | grep -q drawtext
+          echo "FFMPEG=/usr/bin/ffmpeg" >> "$GITHUB_ENV"
+          echo "FFPROBE=/usr/bin/ffprobe" >> "$GITHUB_ENV"
       - name: Install dependencies (as in README)
         run: npm ci
       - name: Run tests (as in README)
