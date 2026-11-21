@@ -11,3 +11,4 @@ data/*
 !data/.gitkeep
 dist/
 models/
+!docs/screenshots/*.png
