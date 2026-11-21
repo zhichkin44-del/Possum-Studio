@@ -90,7 +90,7 @@ Other scenarios:
 npm test
 ```
 
-Tests need no internet: the Telegram API is faked, and the montage tests use a real ffmpeg when it is available. Last run: 2026-11-21, 500 tests, 488 passed, 0 failed, 12 skipped.
+Tests need no internet: the Telegram API is faked, and the montage tests use a real ffmpeg when it is available. Last run on a fresh `npm ci` clone, 2026-11-21: 500 tests, 493 passed, 0 failed, 7 skipped.
 
 ## Project structure
 
