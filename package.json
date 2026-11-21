@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Сахарный поссум: бот владельца и приложение напарницы — монтаж, совет, выкладка по кнопке",
+  "description": "Possum Studio: Telegram bot and desktop app that edit pet videos into short vertical clips with captions (interface in Russian)",
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test \"test/**/*.test.js\"",

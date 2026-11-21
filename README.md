@@ -1,29 +1,108 @@
-# Сахарный поссум
+# Possum Studio
 
-Telegram-бот студии Pulse AI: ведёт напарницу Саши — задание дня, приём видео, монтаж, готовый пост для YouTube EN/RU, TikTok и Instagram Reels, итоги недели. Напарница снимает и выкладывает сама, бот ничего не публикует. Паспорт: [docs/CHARTER.md](docs/CHARTER.md). Тексты: [docs/texts/](docs/texts/). Раскладки: [docs/layouts/](docs/layouts/).
+A Telegram bot and Windows desktop app that help a pet owner turn phone footage of a pet into short vertical videos (YouTube Shorts, TikTok, Instagram Reels) with ready-to-paste captions. For people filming a pet at home who want a simple, repeatable routine.
 
-Статус: код готов к первому живому прогону (тесты зелёные). Живого прогона с настоящим Telegram, токеном и съёмкой поссума ещё не было.
+Interface language: Russian. The bot texts and the desktop app are in Russian; this README and the code documentation are in English.
 
-## Запуск (на ноутбуке)
-1. Создать бота и положить токен — [docs/BOTFATHER.md](docs/BOTFATHER.md) (`npm run set-token`, токен вводит Саша).
-2. `npm start` — в окне появятся коды: Саша отправляет боту `/start <код Саши>`, напарница — `/start <код напарницы>`. Чужие получают «Это закрытый бот».
-3. Нужны: Node 20+, FFmpeg в PATH (или переменная `FFMPEG`). Данные и состояние — в папке `data/` (в git не попадает). Имя героя и время заданий — в `data/config.json` (необязательно).
+Nothing is published automatically. The app prepares videos and text; the person uploads them.
 
-## Тесты
+Status: tests are green (see [Tests](#tests)). The first live run with a real Telegram account and real footage is still pending.
+
+## Features
+
+- Daily shooting task sent by the Telegram bot, with a weekly summary.
+- Video intake from Telegram; the bot keeps a log of tasks and uploads.
+- Automatic montage with FFmpeg: 9:16 at 1080×1920, up to 18 s, loudness −14 LUFS, cover image, and a check sheet of frames.
+- Captions, hashtags and first comments for YouTube (RU and EN), TikTok and Instagram Reels.
+- Desktop app (Windows): inbox, render queue, manual publishing buttons, and encrypted storage of API keys (Windows DPAPI).
+- Optional AI-written texts and frame recognition via your own API key (Anthropic or OpenRouter). Without a key, template texts are used.
+
+## Requirements
+
+- Node.js 20 or newer.
+- FFmpeg and ffprobe on `PATH`, or set the `FFMPEG` and `FFPROBE` variables. On Windows: `winget install Gyan.FFmpeg`.
+- A Telegram account and a bot token from @BotFather (see [docs/BOTFATHER.md](docs/BOTFATHER.md)).
+- Optional: an Anthropic or OpenRouter API key for AI texts. Without it the app works with templates.
+- Operating systems: Windows 10/11 (full support, including the desktop app), Linux and macOS (bot and tests).
+
+## Installation
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/zhichkin44-del/Possum-Studio.git
+cd Possum-Studio
+npm ci
+npm run set-token
+npm start
+```
+
+### Linux and macOS
+
+```bash
+git clone https://github.com/zhichkin44-del/Possum-Studio.git
+cd Possum-Studio
+npm ci
+npm run set-token
+npm start
+```
+
+`npm run set-token` asks for the bot token with hidden input and saves it to `data/.token`. The token is never printed. To check it with Telegram, run `npm run set-token -- --verify`.
+
+To run the desktop app on Windows, use `npm run app`. To build the Windows installer, use `npm run dist`.
+
+## Configuration
+
+Copy `.env.example` for reference. The app does not read `.env` automatically; set variables in your shell or let the defaults apply.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | No | Bot token. Alternative to `npm run set-token`. |
+| `POSSUM_DATA_DIR` | No | Data folder. Default: `data/`. |
+| `FFMPEG`, `FFPROBE` | No | Paths to ffmpeg and ffprobe if they are not on `PATH`. |
+| `POSSUM_TZ` | No | Time zone offset in hours, for example `7`. Default: the system time zone. |
+| `POSSUM_FONT` | No | Path to a caption font file. |
+| `POSSUM_CLIP_MODEL` | No | Path to the local CLIP model file used for recognising the pet. |
+| `POSSUM_STATS_API` | No | Stats endpoint. Not connected by default. |
+
+Where to get keys:
+
+- Telegram bot token: create a bot with @BotFather in Telegram (`/newbot`).
+- AI key (optional): an Anthropic key from the Anthropic console (API Keys), or an OpenRouter key from openrouter.ai. Enter it in the desktop app settings, not in files.
+
+Other settings, such as the pet's name and task times, go in `data/config.json` (optional).
+
+## Usage
+
+1. Run `npm start`. The console prints an invite link for the owner and one for the person filming. Each link opens the bot in Telegram; press Start.
+2. The bot sends a daily shooting task at 19:30 (configurable). Film it, then send the video to the bot.
+3. The bot builds a short video, a caption and a cover, and sends them back. Publish manually on the platform of your choice.
+4. Every week the bot sends a summary of uploads and tasks.
+
+Other scenarios:
+
+- Desktop app (Windows): `npm run app`. Drop a batch of videos into the inbox; the app proposes short clips and renders them into the queue.
+- Demo with sample footage: `npm run demo`.
+
+## Tests
+
 ```bash
 npm test
 ```
-Тесты идут без интернета: поддельный Telegram, настоящий ffmpeg для монтажа. Путь «напарница» (день 1, неделя 1, день 100) — `test/partner-path.test.js`.
 
-## Что внутри
-- `src/bot.js` — логика: задания, приём видео, пост, пауза, итоги недели, выбор сценария с 3-й недели.
-- `src/montage.js` — монтаж ffmpeg: 9:16, до 18 с, лучшее по движению место, заставка RU+EN, −14 LUFS, обложка, лист проверки.
-- `src/post.js` — подписи и хештеги под четыре площадки, проверка качества ролика.
-- `src/stats.js` — статистика: сейчас цифры от напарницы; автодоступ к каналам — заглушка, подключается позже (входы делает Саша).
-- `scripts/set-token.mjs` — ввод токена; `scripts/transcript.mjs` — прогон диалога для проверки; `scripts/sample-post.mjs` — образец поста.
+Tests need no internet: the Telegram API is faked, and the montage tests use a real ffmpeg when it is available. Last run: 2026-11-21, 500 tests, 488 passed, 0 failed, 12 skipped.
 
-## Чего пока нет
-- Живого прогона и настоящих съёмок: оформление проверено на заглушке, не на видео поссума.
-- Автоматической статистики каналов (YouTube/TikTok/Instagram).
-- Публикации: её не будет — выкладывает только напарница.
-- Монтаж не использует `produce.py` и `proof_sheet.py` Видеостудии: они привязаны к эпизодам с озвучкой и кадрами от ИИ и к съёмке с телефона не подходят. Взято: ffmpeg, формат 1080×1920, громкость −14 LUFS.
+## Project structure
+
+- `src/` — Telegram bot: tasks, video intake, posts, weekly summary, poller, store.
+- `core/` — shared engine for the bot and the desktop app: montage, texts, AI client, settings with encryption, publishing adapters.
+- `app/` — Electron desktop app (Windows), including the Russian UI in `app/ui/`.
+- `assets/` — fonts and sound effects with their licences.
+- `scripts/` — token entry (`set-token`), demo, sample post, icon and model fetch.
+- `test/` — automated tests (`node --test`).
+- `docs/` — architecture, plans, bot text samples and layouts (in Russian).
+- `craft/` — notes on fonts, sounds and montage rules.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
